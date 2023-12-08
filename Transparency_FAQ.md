@@ -13,3 +13,4 @@ The scientific community will use these pre-trained models as a baseline to jump
 3.	The inference code assumes a certain data structure as documented inside the code and may not work properly if one decides to utilize the inference code with data of a different structure. 
 4.	The evaluation framework gives a limited depth of analysis on the performance of the model. There may be low correlation between the results of the evaluation metrics and the subjective assessment of the user on what they consider a good performance.
 5.	The existence of environmental noises with high energy levels may cause performance degredation that has not been quantified in our experiments.
+6.	The models we provide are intended to be used with English speakers, and may present different performance evaluation depending on the English accent and dialects. We have not conducted research regarding other languages other than English.

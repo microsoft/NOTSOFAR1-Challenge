@@ -1,14 +1,10 @@
-# Project
+# NOTSOFAR
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+:construction: Repository Under Construction :construction:
 
-As the maintainer of this project, please make a few updates:
+This repository is currently under construction and will be **fully operational by February 1**. We're working hard to get everything ready and can't wait to share it with you. Please check back on or after February 1 for updates.
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+Thank you for your patience and interest!
 
 ## Contributing
 

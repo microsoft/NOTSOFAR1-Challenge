@@ -18,18 +18,19 @@ This guide is written for Linux at the moment. Windows support is coming soon.
 
 ### Step 1: Clone the Repository
 
-Clone the repository from Azure DevOps. Open your terminal and run the following command:
+Clone the `NOTSOFAR1-Challenge` repository from GitHub. Open your terminal and run the following command:
 
 ```bash
 sudo apt-get install git
-git clone https://dev.azure.com/msatli/atli/_git/NOTSOFAR
+git clone https://github.com/microsoft/NOTSOFAR1-Challenge.git
 ```
-**Note**: You will be prompted to enter your user credentials. <br>
-To generate your credentials, follow these steps:
-1. Navigate to the repository on Azure DevOps.
-2. Click the **Clone** button.
-3. Click the **Generate Git Credentials** button.
-4. Enter the generated credentials in the terminal.
+**Note**: repository is private, you will need to be added as a contributor to clone it. <br>
+If you encounter an `Repository not found`, clone the repository using the following command: <br>
+
+```bash
+git clone https://<github_username>@github.com/microsoft/NOTSOFAR1-Challenge.git
+````
+
 
 ### Step 2: Install Python 3.10
 

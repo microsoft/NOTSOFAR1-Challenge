@@ -1,0 +1,41 @@
+# * Key-value pairs that do not appear here will be set to default values defined in the dataclasses.
+# * Key names and value types will be verified.
+
+asr:
+  model_name: 'tiny'
+
+css:
+  segment_size: 3.
+  hop_size: 1.5
+  device: "cuda:0"
+  show_progressbar: True
+
+diarization:
+  method: 'word_nmesc'     # choose from "word_nmesc", "nmesc" and "nmesc_msdd"
+  min_embedding_windows: [3.0,2.5,2.0,1.5,1.0,0.5]
+  embedding_model_name: "titanet_large"
+  msdd_model_name: "diar_msdd_telephonic"
+  # vad_model_name: "vad_telephony_marblenet"    # for 8kHz telephone
+  vad_model_name: "vad_multilingual_marblenet"   # for 16kHz
+
+
+
+# one SC session:
+session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'
+
+# Plaza SC sessions that are not read meetings:
+#session_query: 'device_name == "plaza_0" and is_mc == False and ~MtgType.str.startswith("read")'
+
+# all SC sessions that are not read meetings:
+#session_query: 'is_mc == False and ~MtgType.str.startswith("read")'
+
+# ------Multi-Channel------
+# all MC sessions that are not read meetings:
+#session_query: 'is_mc == True and ~MtgType.str.startswith("read")'
+
+# one MC session:
+#session_query: 'is_mc == True and meeting_id == "MTG_30830" and device_name == "rockfall_0"'
+
+
+# Note: "read" meetings are essentially debug meetings thta have a person reading a predefined text.
+#   Useful for debugging but not so much for hyper param tuning. That's why we remove them at this point.

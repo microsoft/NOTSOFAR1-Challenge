@@ -130,6 +130,9 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
     # Instantiate the model
     if train_cfg.model_name == 'css_with_conformer':
         model = ConformerCssWrapper(train_cfg.conformer_css_cfg)
+    elif train_cfg.model_name == 'dummy':
+        # TODO: Remove before release.
+        model = DummyCss()
     else:
         raise ValueError(f'Unknown model name: {train_cfg.model_name}!')
 

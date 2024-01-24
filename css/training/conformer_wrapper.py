@@ -105,3 +105,33 @@ class ConformerCssWrapper(nn.Module):
             res = tuple(r.moveaxis(1, 3).contiguous() for r in res)  # -> (mag, phase) tuples of [Batch, F, T, Mics]
 
         return res
+
+
+# TODO: Remove before release.
+class DummyCss(nn.Module):
+    """A dummy CSS model that does nothing."""
+    def __init__(self):
+        super().__init__()
+
+        l = nn.Linear(4096, 4096)
+        layers = []
+        for i in range(5000):
+            layers.append(l)
+            layers.append(nn.ReLU())
+
+        self.seq = nn.Sequential(*layers)
+
+
+    def forward(self, mix: th.Tensor):
+
+        # Flatten the mix, except the batch dimension.
+        mix = mix.flatten(start_dim=1)
+        # Take the first items to match the expected input size of the linear1 layer.
+        mix = mix[:, :4096]
+        # Pass the mix through the linear layers, with relu in between.
+        mix = self.seq(mix)
+
+        return {
+            'spk_masks': mix,
+            'noise_masks': mix+1
+        }

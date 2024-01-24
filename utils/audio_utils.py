@@ -2,7 +2,6 @@ import os
 import numpy as np
 import soundfile as sf
 import scipy.io.wavfile as wf
-import sounddevice as sd
 
 MAX_INT16 = np.iinfo(np.int16).max
 EPSILON = np.finfo(np.float32).eps
@@ -50,5 +49,6 @@ def write_wav(fname, samps, sr=16000, max_norm: bool = True):
 
 
 def play_wav(wav: np.ndarray, fs: int = 16000, volume_factor: float = 1.):
+    import sounddevice as sd
     numpy_audio = wav.squeeze()
     sd.play(numpy_audio * volume_factor, fs)

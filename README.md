@@ -60,8 +60,8 @@ Navigate to the cloned repository and install the required Python dependencies:
 ```bash
 cd /path/to/NOTSOFAR-Repo
 python -m pip install --upgrade pip
-pip install --upgrade setuptools wheel
-sudo apt-get install python3.10-dev, ffmpeg
+pip install --upgrade setuptools wheel Cython fasttext-wheel
+sudo apt-get install python3.10-dev ffmpeg build-essential
 pip install -r requirements.txt
 ```
 

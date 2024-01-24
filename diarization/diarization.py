@@ -11,8 +11,23 @@ from diarization.word_based_diarization import word_based_clustering
 
 def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: DiarizationCfg, overwrite: bool, simulate_css: bool=True) -> pd.DataFrame:
     """
+    Run diarization to assign a speaker label to each ASR word.
+    
+    Two diarization modes are supported:
+    1. Pre-SR diarization that runs diarization without the knowledge of ASR.
+        In this mode, we directly call NeMo's diarization recipes, such as NMESC or NMESCC
+        followed by MSDD. Then, for each ASR word, the speaker that is the most active within
+        the word's time boundaries is assigned to the word. 
+    2. Post-SR diarization that runs diarization after ASR. Allows the use of word boundaries.
+        In this mode, we extract a speaker embedding vector for each word, and then call
+        NeMo's NMESC for clustering. We also adopted the multi-scale speaker embedding window
+        concept from NeMo, and extract multiple scale speaker embedding vectors for each word,
+        each scale using different window sizes. The final affinity matrix is a simple average
+        of the affinity matrixces of all the scales.
 
     Args:
+        out_dir: the directory to store generated files in the diarization step.
+            This allows the cache of files and skip some steps when the code is run again.
         segments_df: a dataframe of transcribed segments for a given session, with columns:
             'start_time': start time of the segment in seconds.
             'end_time': end time of the segment in seconds.
@@ -21,6 +36,9 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
             'meeting_id': the meeting id.
             'session_id': the session id.
         cfg: diarization configuration.
+        overwrite: whether to overwrite previously generated diarizaiton files
+        simulate_css: a temporary option that simulates multiple CSS unmixed channels
+            so we can test whether diarization works with CSS outputs.  
     Returns:
         attributed_segments_df: a new set of segments with 'speaker_id' column added.
     """

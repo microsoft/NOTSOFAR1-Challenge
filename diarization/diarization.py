@@ -9,24 +9,25 @@ from diarization.time_based_diarization import time_based_diarization
 from diarization.word_based_diarization import word_based_clustering
 
 
-def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: DiarizationCfg, overwrite: bool, simulate_css: bool=True) -> pd.DataFrame:
+def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: DiarizationCfg,
+                          fetch_from_cache: bool, simulate_css: bool=False) -> pd.DataFrame:
     """
     Run diarization to assign a speaker label to each ASR word.
-    
+
     Two diarization modes are supported:
     1. Pre-SR diarization that runs diarization without the knowledge of ASR.
         In this mode, we directly call NeMo's diarization recipes, such as NMESC or NMESCC
         followed by MSDD. Then, for each ASR word, the speaker that is the most active within
-        the word's time boundaries is assigned to the word. 
-        Set cfg.method to "nmesc" to use NMESC recipe of NeMo in the config file. 
-        Set cfg.method to "nmesc_msdd" to use the NMESC followed by MSDD recipe of NeMo. 
+        the word's time boundaries is assigned to the word.
+        Set cfg.method to "nmesc" to use NMESC recipe of NeMo in the config file.
+        Set cfg.method to "nmesc_msdd" to use the NMESC followed by MSDD recipe of NeMo.
     2. Post-SR diarization that runs diarization after ASR. Allows the use of word boundaries.
         In this mode, we extract a speaker embedding vector for each word, and then call
         NeMo's NMESC for clustering. We also adopted the multi-scale speaker embedding window
         concept from NeMo, and extract multiple scale speaker embedding vectors for each word,
         each scale using different window sizes. The final affinity matrix is a simple average
         of the affinity matrixces of all the scales.
-        To use this mode, set cfg.method to "word_nmesc". 
+        To use this mode, set cfg.method to "word_nmesc".
 
     Args:
         out_dir: the directory to store generated files in the diarization step.
@@ -41,31 +42,25 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
         cfg: diarization configuration.
         overwrite: whether to overwrite previously generated diarizaiton files
         simulate_css: a temporary option that simulates multiple CSS unmixed channels
-            so we can test whether diarization works with CSS outputs.  
+            so we can test whether diarization works with CSS outputs.
     Returns:
         attributed_segments_df: a new set of segments with 'speaker_id' column added.
     """
 
-    assert segments_df.session_id.nunique() <= 1, 'no cross-device information is permitted'
-    assert segments_df.wav_file_names.nunique() <= 3, 'at most three unmixed channels'
-
-    seg = segments_df.iloc[0]
-    sr = 16000
-    sr_actual, wav = read_wav(seg['wav_file_names'], normalize=True, return_rate=True,
-                              beg=int(seg.start_time * sr), end=int(seg.end_time * sr))
-    assert sr_actual == sr
+    assert segments_df.session_id.nunique() <= 1, 'no cross-session information is permitted'
+    assert segments_df.wav_file_names.nunique() <= 3, 'expecting at most three separated channels'
 
     session_name = segments_df.session_id[0]
     
     output_dir = os.path.join(out_dir, "diarization", session_name, cfg.method)
-    if overwrite and os.path.isdir(output_dir):
-        shutil.rmtree(output_dir)
+    assert not fetch_from_cache, 'needs support'
     os.makedirs(output_dir, exist_ok=True)
     
     if simulate_css:
         # simulate CSS audio channels
         # randomly assign the ASR segments into one of the three CSS unmixed channels
-        wav = read_wav(seg['wav_file_names'], normalize=True, return_rate=False)
+        seg = segments_df.iloc[0]
+        sr, wav = read_wav(seg['wav_file_names'], normalize=True, return_rate=True)
         channel_segments = [[], [], []]
         new_seg_wav_files = []
         for _, seg in segments_df.iterrows():

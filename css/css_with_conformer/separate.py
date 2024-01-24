@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+"""
+
+This module and the contents of the "css_with_conformer" folder were adapted from
+https://github.com/Sanyuan-Chen/CSS_with_Conformer, with some modifications.
+
+"""
 
 import yaml
 import argparse
@@ -37,7 +43,7 @@ class Separator(object):
     """
     A simple wrapper for speech separation
     """
-    def __init__(self, cpt_dir, get_mask=False, device_id=-1):
+    def __init__(self, cpt_dir, get_mask=False, device='cpu'):
         # load executor
         cpt_dir = Path(cpt_dir)
         self.get_mask = get_mask
@@ -46,21 +52,9 @@ class Separator(object):
         epoch = self.executor.resume(cpt_ptr.as_posix())
         print(f"Load checkpoint at {cpt_dir}, on epoch {epoch}")
         #print(f"Nnet summary: {self.executor}")
-        if device_id < 0:
-            self.device = th.device("cpu")
-        else:
-            self.device = th.device(f"cuda:{device_id:d}")
-            self.executor.to(self.device)
+        self.device = device
+        self.executor.to(self.device)
         self.executor.eval()
-
-    def separate_conformer(self, egs):
-        """
-        Do separation
-        """
-        egs["mix"] = th.from_numpy(egs["mix"][None, :]).to(self.device, non_blocking=True) #Batch x samples x channels
-        with th.no_grad():
-            spks = self.executor(egs)
-            return spks
 
     def separate(self, egs):
         """
@@ -121,7 +115,7 @@ def run(args):
 
 def run_pretrained_sc_conformer():
     args = argparse.Namespace(
-        checkpoint=r"C:\Repos\NOTSOFAR\artifacts\models\css\css_conformer\sc\1ch_conformer_base",
+        checkpoint=r"C:\Repos\NOTSOFAR\artifacts\css_models\CSS_with_Conformer\sc\1ch_conformer_base",
         wav_file=r"C:\Repos\NOTSOFAR\artifacts\ch0.wav",
         start=28,
         end=32,

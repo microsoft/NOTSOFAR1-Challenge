@@ -18,12 +18,15 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
         In this mode, we directly call NeMo's diarization recipes, such as NMESC or NMESCC
         followed by MSDD. Then, for each ASR word, the speaker that is the most active within
         the word's time boundaries is assigned to the word. 
+        Set cfg.method to "nmesc" to use NMESC recipe of NeMo in the config file. 
+        Set cfg.method to "nmesc_msdd" to use the NMESC followed by MSDD recipe of NeMo. 
     2. Post-SR diarization that runs diarization after ASR. Allows the use of word boundaries.
         In this mode, we extract a speaker embedding vector for each word, and then call
         NeMo's NMESC for clustering. We also adopted the multi-scale speaker embedding window
         concept from NeMo, and extract multiple scale speaker embedding vectors for each word,
         each scale using different window sizes. The final affinity matrix is a simple average
         of the affinity matrixces of all the scales.
+        To use this mode, set cfg.method to "word_nmesc". 
 
     Args:
         out_dir: the directory to store generated files in the diarization step.

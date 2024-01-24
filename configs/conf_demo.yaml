@@ -1,0 +1,4 @@
+# * Key-value pairs that do not appear here will be set to default values defined in the dataclasses in utils/conf.py.
+# * Key names and value types will be verified.
+css:
+  lr: 0.017

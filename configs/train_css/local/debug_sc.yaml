@@ -32,3 +32,5 @@ eval_every: [30, iterations]
 global_batch_size: 32
 learning_rate: 1e-4
 weight_decay: 1e-2  # according to the paper set to 1e-2
+
+is_debug: true

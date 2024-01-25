@@ -7,10 +7,14 @@ import os
 import soundfile
 import torch
 from scipy.io.wavfile import write
+from torch import nn
 from tqdm import trange
 
 from css.css_with_conformer.separate import Separator
+from css.training.conformer_wrapper import ConformerCssWrapper
+from css.training.train import TrainCfg
 from utils.mic_array_model import multichannel_mic_pos_xyz_cm
+from utils.conf import get_conf
 
 
 # CSS inference configuration
@@ -21,8 +25,8 @@ class CssCfg:
     normalize_segment_power: bool = False
     device: Optional[str] = None
     show_progressbar: bool = True
-    checkpoint_sc: str = 'CSS_with_Conformer/sc/1ch_conformer_base'
-    checkpoint_mc: str = 'CSS_with_Conformer/mc/conformer_base'
+    checkpoint_sc: str = 'notsofar/conformer0.5/sc'
+    checkpoint_mc: str = 'notsofar/conformer0.5/mc'
     device_id: int = 0
     num_spks: int = 2  # the number of streams the separation models outputs
     pass_through_ch0: bool = False
@@ -57,18 +61,19 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
         assert False, 'work in progress'
 
 
+
     css_out_dir = Path(out_dir) /  "css_inference" / session.session_id
     if fetch_from_cache and css_out_dir.exists():
         sep_wav_file_names = sorted(css_out_dir.glob('*.wav'))
         session_css['sep_wav_file_names'] = sep_wav_file_names
         return session_css
 
-    chkpt = str(Path(models_dir) / (cfg.checkpoint_mc if session.is_mc else cfg.checkpoint_sc))
+    # get css-with-conformer model
+    # TODO: inference code not complete. the model is currently not in use.
+    separator = load_separator_model(cfg, session.is_mc, models_dir)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # css-with-conformer model
-    separator = Separator(chkpt, get_mask=False, device=device)
-    separator.executor.eval()
+    separator.to(device)
+    separator.eval()
     dtype ='float32'
 
     if session.is_mc:
@@ -81,13 +86,10 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
         sr = srs[0]
     else:
         assert len(session.wav_file_names) == 1
-
         mixwav, sr = soundfile.read(os.path.join(session.meeting_id,session.wav_file_names[0]), dtype=dtype)
-        mixwav = mixwav[16000 * 10:16000 * 20]  # TODO: TEMP!!
-
+        # mixwav = mixwav[16000 * 10:16000 * 20]
         # import sounddevice as sd
         # sd.play(mixwav.squeeze() * 1, 16000)
-
 
     waves = separate_and_stitch(mixwav[np.newaxis, ...], separator, sr, cfg)
 
@@ -106,6 +108,28 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
     # session_css['sep_wav_file_names'] = ...
 
     return session_css
+
+
+def load_separator_model(cfg: CssCfg, is_mc: bool, models_dir: str) -> nn.Module:
+    """Load multi-channel (mc) or single-channel (sc) CSS model from checkpoint and yaml files."""
+
+    model_subpath = cfg.checkpoint_mc if is_mc else cfg.checkpoint_sc
+    model_path = Path(models_dir) / model_subpath
+
+    yaml_path = str(model_path / ('mc.yaml' if is_mc else 'sc.yaml'))
+    chkpts = list(model_path.glob('*.pt'))
+    assert len(chkpts) == 1, 'expecting one model checkpoint'
+    model_cfg = get_conf(yaml_path, TrainCfg).conformer_css_cfg
+    separator = ConformerCssWrapper(model_cfg)
+
+    cpt = torch.load(chkpts[0], map_location="cpu")
+
+    def get_sub_state_dict(state_dict, prefix):
+        # during training, model is wrapped in DP/DDP which introduces "module." prefix. remove it.
+        return {k[len(prefix):]: v for k, v in state_dict.items() if k.startswith(prefix)}
+
+    separator.load_state_dict(get_sub_state_dict(cpt["model"], "module."))
+    return separator
 
 
 @torch.no_grad()

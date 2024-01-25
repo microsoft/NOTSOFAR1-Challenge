@@ -47,6 +47,8 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
         attributed_segments_df: a new set of segments with 'speaker_id' column added.
     """
 
+    print("Running Speaker Diarization")
+
     assert segments_df.session_id.nunique() <= 1, 'no cross-session information is permitted'
     assert segments_df.wav_file_names.nunique() <= 3, 'expecting at most three separated channels'
 

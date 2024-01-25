@@ -58,7 +58,8 @@ def catch_unused_params(model: nn.Module):
 
     Note: Call this after backward pass.
     """
-    unused = [name for name, param in model.named_parameters() if param.grad is None]
+    unused = [name for name, param in model.named_parameters()
+              if param.grad is None and param.requires_grad]
     unused_str = "\n" + "\n".join(unused)
     assert len(unused) == 0, f'Found unused parameters: {unused_str}'
 

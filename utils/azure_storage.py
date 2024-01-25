@@ -145,7 +145,7 @@ def main():
         print(dev_set_dir)
 
         train_set_path = download_simulated_subset(
-            version='v1', volume='200hrs', subset_name='train', destination_dir=os.path.join(temp_dir, 'train'))
+            version='v1.4', volume='1000hrs', subset_name='train', destination_dir=os.path.join(temp_dir, 'train'))
         print(train_set_path)
 
         models_path = download_models(

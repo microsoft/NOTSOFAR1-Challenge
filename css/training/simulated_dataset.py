@@ -234,7 +234,7 @@ class SimulatedDataset(Dataset):
         # providing data augmentation. Note that the total number of segments per utterance remains constant.
         segments, seg_len = self.split_func(utterance['size'], seed=seed)
         data_part = Path(utterance['url'])
-        if data_part.suffix == 'tar':
+        if data_part.suffix == '.tar':
             with tarfile.open(utterance['url'], 'r') as tar_file:
                 seg = self._extract_segment(utterance['id'], tar_file, segments[utterance['index']], seg_len)
         else:

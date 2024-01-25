@@ -405,9 +405,10 @@ def _calc_loss(segment_batch, model, device, base_loss_fn, pit_loss):
     mix = segment_batch['mixture']  # -> [Batch, T, Mics] (time domain signal)
     res = model(mix)  # -> # (spks, noise) tuple of [Batch, F, T, #spks/noise] tensors (freq domain)
 
+    module = getattr(model, 'module', model)  # handle DP/DDP module attribute
     # Apply STFT on the mic0 mixture, take the magnitude, and add a singleton dimension to allow broadcasting
     # over speakers/noise.
-    mix_mic0_mag_ft = model.module.stft(mix[:, :, ref_mic])[0].unsqueeze(-1)  # -> magnitude [Batch, F, T, 1]
+    mix_mic0_mag_ft = module.stft(mix[:, :, ref_mic])[0].unsqueeze(-1)  # -> magnitude [Batch, F, T, 1]
 
     # Calculate speakers and noise magnitude spectrograms after masking
     pred_spks = res['spk_masks'] * mix_mic0_mag_ft  # -> [Batch, F, T, #spks]
@@ -417,7 +418,7 @@ def _calc_loss(segment_batch, model, device, base_loss_fn, pit_loss):
 
     # Apply STFT on the ground truth signals and take the magnitude
     gt_spks = _get_gt_mic0_stft_mag(segment_batch['gt_spk_direct_early_echoes'], model, device)  # -> [Batch, F, T, #spks]
-    gt_noise = model.module.stft(segment_batch['gt_noise'][:, :, ref_mic])[0]  # -> magnitude [Batch, F, T]
+    gt_noise = module.stft(segment_batch['gt_noise'][:, :, ref_mic])[0]  # -> magnitude [Batch, F, T]
 
     # Calculate the loss
     noise_loss = base_loss_fn(pred_noise, gt_noise).mean(dim=(1, 2))  # -> [Batch]
@@ -432,10 +433,12 @@ def _get_gt_mic0_stft_mag(gt, model, device):
     gt_mic0 = gt[:, :, 0, :]  # -> [Batch, T, Max_spks]
     max_spks = gt_mic0.shape[-1]
 
+    module = getattr(model, 'module', model)  # handle DP/DDP module attribute
+
     # Collate the batch and max_spks dimensions
     gt_mic0 = gt_mic0.moveaxis(-1, 1).contiguous()  # -> [Batch, Max_spks, T]
     gt_mic0 = gt_mic0.view(-1, gt_mic0.shape[2])  # -> [Batch*Max_spks, T]
-    gt_ft = model.module.stft(gt_mic0)  # -> (mag, phase) tuple of [Batch*Max_spks, F, T, Mics]
+    gt_ft = module.stft(gt_mic0)  # -> (mag, phase) tuple of [Batch*Max_spks, F, T, Mics]
 
     # Undo the collation. Work on the magnitude spectrograms only.
     gt_mag_ft = gt_ft[0].view(-1, max_spks, *gt_ft[0].shape[1:])  # -> [Batch, Max_spks, F, T]

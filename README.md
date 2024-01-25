@@ -12,6 +12,8 @@ For more details see:
 The following steps will guide you through setting up the project on your machine. <br>
 This guide is written for Linux. Windows support is coming soon.
 
+Alternatively, you can run and work on the project in a [devctonainer](https://containers.dev/) using, for example, the [Dev Containers VSCode Extension](https://code.visualstudio.com/docs/devcontainers/containers).
+
 ### Step 1: Clone the Repository
 
 Clone the `NOTSOFAR1-Challenge` repository from GitHub. Open your terminal and run the following command:
@@ -21,11 +23,22 @@ sudo apt-get install git
 git clone https://github.com/microsoft/NOTSOFAR1-Challenge.git
 ```
 **Note**: this repository is still private, you will need to be added as a contributor to clone it. <br>
-If you encounter an `Repository not found`, try cloning the repository using the following command: <br>
+
+###### Cloning using Github Username
+If you encounter an `Repository not found` error, try cloning the repository using the following command: <br>
 
 ```bash
 git clone https://<github_username>@github.com/microsoft/NOTSOFAR1-Challenge.git
 ````
+
+###### Cloning using Github Token
+1. Create the token: <br>
+   Go to GitHub Settings > Developer Settings > Personal Access Tokens > Generate New Token (classic) > Mark repo (with all sub items) > Click Create
+2. Use the token to clone:
+```bash
+git clone https://<token>@github.com/microsoft/NOTSOFAR1-Challenge.git
+````
+**Note**: the token is private, do not share it with anyone!
 
 
 ### Step 2: Install Python 3.10

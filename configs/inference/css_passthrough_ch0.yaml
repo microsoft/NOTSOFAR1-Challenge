@@ -23,7 +23,7 @@ diarization:
 
 
 # one MC session:
-#session_query: 'device_name == "rockfall_0" and is_mc == True and  and meeting_id == "MTG_30830"'
+#session_query: 'device_name == "rockfall_0" and is_mc == True and meeting_id == "MTG_30830"'
 
 # one SC session:
 #session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'

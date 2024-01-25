@@ -118,7 +118,7 @@ Note that to submit results on the dev-set, you must evaluate on the full set an
 The following command will run CSS training on the 10-second simulated training data sample in `sample_data/css_train_set`.
 ```bash
 cd /path/to/NOTSOFAR-Repo
-python run_training_css.local.py
+python run_training_css_local.py
 ```
 
 ## 2. Training on the full simulated training dataset
@@ -129,11 +129,22 @@ You have the option to download either the complete dataset, comprising almost 1
 
 For example, to download the entire 1000-hour dataset, make the following calls to download both the training and validation subsets:
 ```python
-train_set_path = download_simulated_subset(
-    version='v1.4', volume='1000hrs', subset_name='train', destination_dir=os.path.join(my_dir, 'train'))
+ver='v1.4'  # this should point to the lateset and greatest version of the dataset.
 
+# Option 1: Download the training and validation sets of the entire 1000-hour dataset. 
 train_set_path = download_simulated_subset(
-    version='v1.4', volume='1000hrs', subset_name='val', destination_dir=os.path.join(my_dir, 'val'))
+    version=ver, volume='1000hrs', subset_name='train', destination_dir=os.path.join(my_dir, 'train'))
+
+val_set_path = download_simulated_subset(
+    version=ver, volume='1000hrs', subset_name='val', destination_dir=os.path.join(my_dir, 'val'))
+
+
+# Option 2: Download the training and validation sets of the smaller 200-hour dataset.
+train_set_path = download_simulated_subset(
+    version=ver, volume='200hrs', subset_name='train', destination_dir=os.path.join(my_dir, 'train'))
+
+val_set_path = download_simulated_subset(
+    version=ver, volume='200hrs', subset_name='val', destination_dir=os.path.join(my_dir, 'val'))
 ```
 
 ### Step 2: Run CSS training
@@ -162,12 +173,13 @@ To download the dataset, replace the arguments and run the following command:
 
 `--destination` replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
 `--pattern` replace the argument with the type of the dataset you want to download (`dev_set` / `eval_set` / `train_set`).
+Currently only **dev_set** is available. See timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index) for when the other sets will be released.
 
 ```bash
 az storage blob download-batch --destination <path to NOTSOFAR datasets>/benchmark --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --pattern <set type>/*
 ```
 
-### Simualted Training Dataset
+### Simulated Training Dataset
 
 The NOTSOFAR-1 Training Dataset is a 1000-hour simulated training dataset, synthesized with enhanced authenticity for real-world generalization, incorporating 15,000 real acoustic transfer functions.
 

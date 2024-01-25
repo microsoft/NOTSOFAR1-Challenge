@@ -45,6 +45,8 @@ def asr_inference(out_dir: str, session: pd.Series, cfg: WhisperAsrCfg, fetch_fr
             'meeting_id': the meeting id.
             'session_id': the session id.
     """
+    print("Running ASR")
+
     cfg.assert_valid()
     decode_options = dict(language=cfg.language, word_timestamps=cfg.word_level_time_stamps)
     transcribe_options = dict(task="transcribe", **decode_options)

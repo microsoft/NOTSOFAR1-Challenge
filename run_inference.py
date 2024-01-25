@@ -19,8 +19,14 @@ if __name__ == "__main__":
     project_root = Path(__file__).parent
 
     # tiny Whisper model, small subset of sessions for quick debugging
-    # TODO: full meeting set
+
+
+    # pass-through CSS, large-v2 Whisper, full dev set
     conf_file = project_root / 'configs/inference/css_passthrough_ch0.yaml'
+
+    # for quick debug: pass-through CSS, tiny Whisper, one session
+    # conf_file = project_root / 'configs/inference/css_passthrough_ch0_debug.yaml'
+
     cfg: InferenceCfg = get_conf(str(conf_file), InferenceCfg)
 
     # deploy benchmark dataset

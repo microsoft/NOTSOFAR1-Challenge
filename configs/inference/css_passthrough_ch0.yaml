@@ -2,7 +2,7 @@
 # * Key names and value types will be verified.
 
 asr:
-  model_name: 'tiny'
+  model_name: 'large-v2'
 
 css:
   # css will pass through mic0 in MC sessions and the channel as is in SC sessions
@@ -23,7 +23,10 @@ diarization:
 
 
 # one MC session:
-#session_query: 'is_mc == True and meeting_id == "MTG_30830" and device_name == "rockfall_0"'
+#session_query: 'device_name == "rockfall_0" and is_mc == True and  and meeting_id == "MTG_30830"'
 
 # one SC session:
-session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'
+#session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'
+
+# all sessions:
+session_query: null

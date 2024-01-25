@@ -12,6 +12,8 @@ For more details see:
 The following steps will guide you through setting up the project on your machine. <br>
 This guide is written for Linux. Windows support is coming soon.
 
+Alternatively, you can run and work on the project in a [devctonainer](https://containers.dev/) using, for example, the [Dev Containers VSCode Extension](https://code.visualstudio.com/docs/devcontainers/containers).
+
 ### Step 1: Clone the Repository
 
 Clone the `NOTSOFAR1-Challenge` repository from GitHub. Open your terminal and run the following command:

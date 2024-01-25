@@ -208,5 +208,5 @@ az storage copy --recursive --only-show-errors --destination <path to NOTSOFAR d
 
 Example:
 ```bash
-az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path v1.4/200hrs/train
+az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path v1.3/200hrs/train
 ```

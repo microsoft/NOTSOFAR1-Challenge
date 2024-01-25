@@ -163,6 +163,7 @@ The datasets are stored in Azure Blob Storage, to download them, you will need t
 
 You can use either the python utilities in `utils/azure_storage.py` or the `az storage blob download-batch` command to download the datasets as described below.
 
+
 ### Meeting Dataset for Benchmarking and Training
 
 The NOTSOFAR-1 Recorded Meeting Dataset is a collection of 315 meetings, each averaging 6 minutes, recorded across 30 conference rooms with 4-8 attendees, featuring a total of 35 unique speakers. This dataset captures a broad spectrum of real-world acoustic conditions and conversational dynamics.
@@ -171,13 +172,21 @@ The NOTSOFAR-1 Recorded Meeting Dataset is a collection of 315 meetings, each av
 
 To download the dataset, replace the arguments and run the following command:
 
-`--destination` replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
-`--pattern` replace the argument with the type of the dataset you want to download (`dev_set` / `eval_set` / `train_set`).
+`--destination` - replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
+`--include-path` - replace with the dataset you want to download: <br>
+- `subset_name`: name of split to download (`dev_set` / `eval_set` / `train_set`).
+- `version`: version to download (`240103g` / etc.). it's best to use the latest.
 Currently only **dev_set** is available. See timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index) for when the other sets will be released.
 
 ```bash
-az storage blob download-batch --destination <path to NOTSOFAR datasets>/benchmark --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --pattern <set type>/*
+az storage copy --recursive --only-show-errors --destination <path to NOTSOFAR datasets>/benchmark --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --include-path <subset_name>/<version>/MTG
 ```
+
+Example:
+```bash
+az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --include-path dev_set/240103g/MTG
+````
+
 
 ### Simulated Training Dataset
 
@@ -187,14 +196,17 @@ The NOTSOFAR-1 Training Dataset is a 1000-hour simulated training dataset, synth
 
 To download the dataset, replace the arguments and run the fallowing command:
 
-`--destination` - replace with a path to the directory where you want to download the training dataset (destination directory must exist). <br>
-`--source` - replace with the link to the training dataset. <br>
-`--pattern` replace with the dataset you want to download:
-- `version` - replace with the version of the dataset you want to download (`v1` / `v1.1` / `v1.2` / `v1.3`...)
-- `volume` - replace with the volume of the dataset you want to download (`200hrs` / `1000hrs`...)
-- `set type` - replace with the type of the dataset you want to download (`dev_set` / `eval_set` / `train_set`).
+`--destination` - replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
+`--include-path` - replace with the dataset you want to download: <br>
+- `version`: version of the train data to download (`v1` / `v1.1` / `v1.2` / `v1.3` / `1.4` / etc.)
+- `volume` - volume of the train data to download (`200hrs` / `1000hrs` / etc.)
+- `subset_name`: train data type to download (`train` / `val`)
 
 ```bash
-az storage blob download-batch --destination <path to NOTSOFAR datasets>/training --source https://notsofarsa.blob.core.windows.net/css-datasets --pattern <version>/<volume>/<set type>/*
+az storage copy --recursive --only-show-errors --destination <path to NOTSOFAR datasets>/simulated --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path <version>/<volume>/<subset name>
 ```
 
+Example:
+```bash
+az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path v1.4/1000hrs/train
+```

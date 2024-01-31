@@ -153,6 +153,15 @@ The `main` function in `run_training_css.py` provides an entry point with `conf`
 
 It is important to note that the setup and provisioning of a compute cloud environment for running this training process is the responsibility of the user. Our code is designed to support **PyTorch's Distributed Data Parallel (DDP)** framework. This means you can leverage multiple GPUs across several nodes efficiently.
 
+### Step 3: Customizing the CSS model
+To add a new CSS model, you need to do the following:
+1. Have your model implement the same interface as our baseline CSS model class `ConformerCssWrapper` which is located
+in `css/training/conformer_wrapper.py`. Note that in addition to the `forward` method, it must also implement the 
+`separate`, `stft`, and `istft` methods. The latter three methods will be used in the inference pipeline and to 
+calculate the loss when training.
+2. Create a configuration dataclass for your model. Add it as a member of the `TrainCfg` dataclass in 
+`css/training/train.py`.
+3. Add your model to the `get_model` function in `css/training/train.py`.
 
 
 

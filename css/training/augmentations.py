@@ -48,10 +48,10 @@ class MicShiftAugmentation:
 
 
 def _batch_roll_dim2(arr, shifts):
-    """Rolls the values of the second dimension of a batch of tensors.
+    """Rolls the values of the third dimension of a batch of tensors.
 
     Args:
-        arr: The array of shape [Batch, Channels, Mics] or [Batch, Channels, Mics, Spks] to roll.
+        arr: The array of shape [Batch, T, Mics] or [Batch, T, Mics, Spks] to roll.
         shifts: The number of shifts to perform for each batch element.
 
     Returns:
@@ -63,18 +63,21 @@ def _batch_roll_dim2(arr, shifts):
     if orig_ndim == 3:
         arr = arr.unsqueeze(-1)
 
-    # Assuming arr of shape [batch_size, channels, mics, spks]
-    batch_size, channels, mics, spks = arr.shape
+    # Assuming arr of shape [batch_size, mics, T, spks]
+    batch_size, t, mics, spks = arr.shape
 
     # Create a grid of mic indices of the same shape as the input tensor
-    indices = torch.arange(mics, device=arr.device).unsqueeze(-1).repeat(batch_size, channels, 1, spks)
+    indices = torch.arange(mics, device=arr.device)[None, None, :, None].repeat(batch_size, t, 1, spks)
+
+    # Verify that shifts is a vector of the same size as the batch size
+    assert shifts.shape == (batch_size,), f'Expecting shifts to be a vector of the same size as the batch size!'
 
     # Adjust indices for the shifts, ensuring wrapping around
     indices = (indices - shifts[:, None, None, None]) % mics
 
     # Gather the values from the input tensor according to the shifted indices.
     # The following will result in:
-    #   rolled[batch][channel][mic][spk] = arr[batch][channel][indices[batch][channel][mic]][spk].
+    #   rolled[batch][t][mic][spk] = arr[batch][t][ indices[batch][t][mic] ][spk].
     rolled = torch.gather(arr, 2, indices)
 
     # Remove the singleton dimension if needed
@@ -85,10 +88,14 @@ def _batch_roll_dim2(arr, shifts):
 
 
 def test_batch_roll_dim2():
+    batch_size = 32
+    t = 48000
+    mics = 7
+    spks = 3
+
     for with_spks in [True, False]:
-        for i in range(10):
-            m = torch.rand(32, 7, 48000, 2) if with_spks else torch.rand(32, 7, 48000)
-            batch_size = m.shape[0]
+        for i in range(100):
+            m = torch.rand(batch_size, t, mics, spks) if with_spks else torch.rand(batch_size, t, mics)
 
             shifts = torch.randint(0, 6, (batch_size,))
 
@@ -102,7 +109,7 @@ def test_batch_roll_dim2():
                 r2[b, :, 1:] = torch.roll(m[b, :, 1:], shifts=shifts[b].item(), dims=1)
 
             # Check that the results are the same
-            assert torch.allclose(r1, r2), f'Failed!'
+            assert (r1 == r2).all(), 'Failed!'
 
     print('batch_roll_dim2 test passed!')
 

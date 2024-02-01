@@ -1,12 +1,24 @@
+from pathlib import Path
 from typing import List, Dict
+from dataclasses import dataclass
 
 import pandas as pd
 import json
 import os
+import sys
+
+import meeteval
+from meeteval.viz.visualize import AlignmentVisualization 
+
+
+@dataclass
+class ScoringCfg:
+    # If True, saves reference - hypothesis visualizations (self-contained html)
+    save_visualizations: bool = False
 
 
 def write_transcript_to_stm(out_dir, attributed_segments_df: pd.DataFrame, tn, session_id: str,
-                            filename: str = 'hyp.stm'):
+                            filename):
     """
     Save a session's speaker attributed transcription into stm files.
 
@@ -15,30 +27,31 @@ def write_transcript_to_stm(out_dir, attributed_segments_df: pd.DataFrame, tn, s
         attributed_segments_df: dataframe of speaker attributed transcribed segments for the given session.
         tn: text normalizer.
         session_id: session name
-        filename: the file name to save. Should be hyp.stm for hypothesis
+        filename: the file name to save. Should be, e.g., tcpwer_hyp.stm for hypothesis
             and ref.stm for reference.
 
     Returns:
         path to saved stm.
     """
-    # assert attributed_segments_df.session_id.nunique() <= 1, 'no cross-session information is permitted'
+    if 'session_id' in attributed_segments_df:
+        assert attributed_segments_df.session_id.nunique() <= 1, 'no cross-session information is permitted'
 
-    filepath = os.path.join(out_dir, 'tcpwer', session_id, filename)
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    channel = 1
-    with open(filepath, 'w') as f:
+    filepath = Path(out_dir) / 'wer' / session_id / filename
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    channel = 1  # ignored by MeetEval
+    with filepath.open('w') as f:
         for entry in range(len(attributed_segments_df)):
-            speaker_id = attributed_segments_df.iloc[entry]['speaker_id']
+            stream_id = attributed_segments_df.iloc[entry]['stream_id']
             start_time = attributed_segments_df.iloc[entry]['start_time']
             end_time = attributed_segments_df.iloc[entry]['end_time']
             text = tn(attributed_segments_df.iloc[entry]['text'])
-            f.write(f'{session_id} {channel} {speaker_id} {start_time} {end_time} {text}\n')
+            f.write(f'{session_id} {channel} {stream_id} {start_time} {end_time} {text}\n')
 
-    return filepath
+    return str(filepath)
 
 
-def calc_tcpwer(out_dir: str, hyp_stm_path: str, session_id: str, gt_utt_df: pd.DataFrame, tn,
-                collar: float) -> pd.Series:
+def calc_wer(out_dir: str, tcp_wer_hyp_stm: str, tcorc_wer_hyp_stm: str,session_id: str,
+             gt_utt_df: pd.DataFrame, tn, collar: float, save_visualizations: bool) -> pd.Series:
     """
     Calculates tcpWER for the given session using meeteval dedicated API and saves the error
     information to .json.
@@ -46,10 +59,13 @@ def calc_tcpwer(out_dir: str, hyp_stm_path: str, session_id: str, gt_utt_df: pd.
 
     Args:
         out_dir: the directory to save intermediate files to.
-        attributed_segments_df: dataframe of speaker attributed transcribed segments for the given session.
+        tcp_wer_hyp_stm: path to hypothesis .stm file for tcpWER.
+        tcorc_wer_hyp_stm: path to hypothesis .stm file for tcorcWER.
+        session_id: session name
         gt_utt_df: dataframe of ground truth utterances for the given session.
-        tn: text normalizer TODO: which one exactly?
+        tn: text normalizer
         collar: tolerance of tcpWER to temporal misalignment between hypothesis and reference.
+        save_visualizations: if True, save html visualizations of alignment between hyp and ref.
     Returns:
         session_res: pd.Series with keys -
             'session_id'
@@ -58,28 +74,65 @@ def calc_tcpwer(out_dir: str, hyp_stm_path: str, session_id: str, gt_utt_df: pd.
             'tcp_wer': tcpWER.
             ... other useful tcp_wer keys (see keys below)
     """
-
-    assert os.path.join(out_dir, 'tcpwer', session_id, 'hyp.stm') == hyp_stm_path
     assert gt_utt_df.meeting_id.nunique() <= 1, 'GT should come from a single session'
 
-    ref_stm_path = write_transcript_to_stm(out_dir, gt_utt_df, tn, session_id, filename='ref.stm')
+    df = gt_utt_df.copy()
+    df['stream_id'] = df['speaker_id']
+    ref_stm_path = write_transcript_to_stm(out_dir, df, tn, session_id, filename='ref.stm')
 
     stm_res = pd.Series(
-        {'session_id': session_id, 'hyp_file_name': hyp_stm_path, 'ref_file_name': ref_stm_path})
+        {'session_id': session_id, 'tcp_wer_hyp_stm': tcp_wer_hyp_stm,
+         'tcorc_wer_hyp_stm': tcorc_wer_hyp_stm, 'ref_stm': ref_stm_path})
 
-    def calc_session_wer(session: pd.Series):
-        os.system(f"python -m meeteval.wer tcpwer -h {session.hyp_file_name} -r "
-                  f"{session.ref_file_name} "
+    
+    def save_wer_visualization(session: pd.Series):
+        ref = meeteval.io.load(session.ref_file_name).groupby('filename')
+        hyp = meeteval.io.load(session.hyp_file_name).groupby('filename')
+        assert len(ref) == 1, 'Multiple meetings in a ref file?'
+        assert len(hyp) == 1, 'Multiple meetings in a hyp file?'
+        assert list(ref.keys())[0] == list(hyp.keys())[0]
+        
+        meeting_name = list(ref.keys())[0]        
+        av = AlignmentVisualization(ref[meeting_name], hyp[meeting_name], alignment='tcp')        
+        # Create standalone HTML file
+        av.dump(os.path.join(os.path.split(session.hyp_file_name)[0], 'viz.html'))  
+        
+    
+    def calc_session_tcp_wer(session: pd.Series):
+        os.system(f"{sys.executable} -m meeteval.wer tcpwer "
+                  f"-h {session.tcp_wer_hyp_stm} "
+                  f"-r {session.ref_stm} "
                   f"--collar {collar}")
 
-        with open(os.path.splitext(session.hyp_file_name)[0] + '_tcpwer.json', "r") as read_file:
+        with (open(os.path.splitext(session.tcp_wer_hyp_stm)[0] + '_tcpwer.json', "r") as read_file):
             data = json.load(read_file)
             keys = ['error_rate', 'errors', 'length', 'insertions', 'deletions', 'substitutions',
                     'missed_speaker', 'falarm_speaker', 'scored_speaker', 'assignment']
 
-            return pd.Series({key: data[key] for key in keys}).rename({'error_rate': 'tcp_wer'})
+            return pd.Series({('tcp_' + key): data[key] for key in keys}
+                             ).rename({'tcp_error_rate': 'tcp_wer'})
 
-    wer_res = calc_session_wer(stm_res)
-    session_res = pd.concat([stm_res, wer_res], axis=0)
+
+    def calc_session_tcorc_wer(session: pd.Series):
+        os.system(f"{sys.executable} -m meeteval.wer tcorcwer "
+                  f"-h {session.tcorc_wer_hyp_stm} "
+                  f"-r {session.ref_stm} " 
+                  f"--collar {collar}")
+
+        with (open(os.path.splitext(session.tcorc_wer_hyp_stm)[0] + '_tcorcwer.json', "r") as read_file):
+            data = json.load(read_file)
+            keys = ['error_rate', 'errors', 'length', 'insertions', 'deletions', 'substitutions',
+                    'assignment']
+
+            return pd.Series({('tcorc_'+key): data[key] for key in keys}
+                             ).rename({'tcorc_error_rate': 'tcorc_wer'})
+
+
+    tcp_wer_res = calc_session_tcp_wer(stm_res)
+    tcorc_wer_res = calc_session_tcorc_wer(stm_res)
+    if save_visualizations:
+        save_wer_visualization(stm_res)
+
+    session_res = pd.concat([stm_res, tcp_wer_res, tcorc_wer_res], axis=0)
 
     return session_res

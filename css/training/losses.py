@@ -58,8 +58,7 @@ class PitWrapper(nn.Module):
         ones = [1] * (len(pred.shape) - 1)
         pred = pred.unsqueeze(-1).repeat(1, *ones, n_sources)
 
-        # Average over time and freq dims. Do not reduce over the last two dims.
-        loss_mat = self.base_loss(pred, target).mean(dim=(0, 1))
+        loss_mat = self.base_loss(pred, target)
 
         assert (
             len(loss_mat.shape) >= 2 and loss_mat.shape[-2:] == target.shape[-2:]
@@ -102,9 +101,15 @@ def mse_loss(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """Computes MSE loss without any reduction."""
     return F.mse_loss(pred, target, reduction="none")
 
+def l1_loss(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """Computes L1 loss without any reduction."""
+    return F.l1_loss(pred, target, reduction="none")
+
 
 def test_pit_wrapper():
     pit_mse = PitWrapper(mse_loss)
+
+    torch.manual_seed(43236)
 
     for i in range(20):
         # (batch, time, freq, sources)

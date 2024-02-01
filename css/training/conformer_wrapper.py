@@ -56,7 +56,8 @@ class ConformerCssWrapper(nn.Module):
         self.executor = Executor(nnet, extractor_kwargs=asdict(cfg.extractor_conf), get_mask=True)
 
     def forward(self, mix: th.Tensor):
-        """Compute the masks for the given mixture.
+        """Compute the masks for the given time domain mixture.
+        A simple composition of stft->separate methods.
 
         Args:
             mix (th.Tensor): The mixture of shape [Batch, T, Mics], in time domain, to compute the masks for.
@@ -70,10 +71,27 @@ class ConformerCssWrapper(nn.Module):
 
         if mix.shape[2] == 1:
             mix = mix.squeeze(2)  # [Batch, T, 1] -> [Batch, T]
-        else:
-            mix = mix.moveaxis(1, 2).contiguous()  # [Batch, T, Mics] -> [Batch, Mics, T]
 
-        res = self.executor({"mix": mix})
+        stft = self.stft(mix)
+        res = self.separate(stft)
+        return res
+
+    def separate(self, stft: th.Tensor):
+        """Compute separation masks for the given signal represented as stft (result of self.stft).
+
+        Args:
+            stft (th.Tensor): complex stft tensor of shape
+                [Batch, F, T, Mics] (multi-channel) or [Batch, F, T] (single-channel)
+        Returns: A dictionary with these keys:
+            'spk_masks' (th.Tensor): The masks for the speakers. Shape: [Batch, F, T, num_spks].
+            'noise_masks' (th.Tensor): The masks for the noise. Shape: [Batch, F, T, num_nois].
+        """
+        assert th.is_complex(stft)
+        if stft.dim() == 4:
+            stft = stft.moveaxis(3, 1).contiguous()
+            # [Batch, F, T, Mics] -> [Batch, Mics, F, T], and make contiguous.
+
+        res = self.executor({"mix": None, 'mag': stft.abs(), 'pha': stft.angle()})
 
         all_masks = th.cat([m.unsqueeze(-1) for m in res], dim=-1)
 
@@ -89,20 +107,41 @@ class ConformerCssWrapper(nn.Module):
         """Compute the STFT of a signal.
 
         Args:
-            s (th.Tensor): The signal to compute the STFT of. Shape: [Batch, T, Mics] for multi-channel, [Batch, T] for
-                single-channel, all in time domain.
+            s (th.Tensor): The time domain signal to compute the STFT of.
+                Shape: [Batch, T, Mics] for multi-channel.
+                       [Batch, T] for single-channel.
 
         Returns:
-            A tuple of magnitude and phase tensors, both of shape [Batch, F, T, Mics].
+            A tensor of shape [Batch, F, T, Mics] and type th.complex64.
         """
 
         if s.dim() == 3:
             s = s.moveaxis(1, 2).contiguous()  # [Batch, T, Mics] -> [Batch, Mics, T], and make contiguous.
 
-        res = self.executor.extractor.stft(s, cplx=False)  # -> (mag, phase) tuples of [Batch, Mics, F, T]
+        mag, phase = self.executor.extractor.stft(s, cplx=False)  # -> (mag, phase) tuple of [Batch, Mics, F, T]
+
+        # to complex stft tensor
+        stft_cplx = th.polar(mag, phase)  # -> [Batch, Mics, F, T]
 
         if s.dim() == 3:
-            res = tuple(r.moveaxis(1, 3).contiguous() for r in res)  # -> (mag, phase) tuples of [Batch, F, T, Mics]
+            stft_cplx = stft_cplx.moveaxis(1, 3).contiguous()  # -> [Batch, F, T, Mics]
+
+        return stft_cplx  # -> [Batch, F, T, Mics], or [Batch, F, T]
+
+    def istft(self, stft: th.Tensor):
+        """Compute the inverse STFT of a signal.
+
+        Args:
+            stft (th.Tensor): The complex signal to compute the iSTFT of, with shape [Batch, F, T].
+
+        Returns:
+            Time domain signal as [Batch, NSamples]  tensor.
+        """
+        assert th.is_complex(stft)
+        assert stft.dim() == 3
+        mag, phase = stft.abs(), stft.angle()
+
+        res = self.executor.extractor.istft(mag, phase, cplx=False)
 
         return res
 

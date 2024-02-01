@@ -10,38 +10,64 @@ For more details see:
 
 # Project Setup
 The following steps will guide you through setting up the project on your machine. <br>
-This guide is written for Linux. Windows support is coming soon.
+
+### Windows Users
+This project is compatible with **Linux** only, Windows users should use WSL2 to run it. <br>
+Follow the instructions in the [WSL2 Installation Guide](https://learn.microsoft.com/en-us/windows/wsl/install) to install WSL2 on your machine. <br>
+And install Ubuntu 20.04 from the [Microsoft Store](https://www.microsoft.com/en-us/p/ubuntu-2004-lts/9n6svws3rx71?activetab=pivot:overviewtab). <br>
 
 Alternatively, you can run and work on the project in a [devctonainer](https://containers.dev/) using, for example, the [Dev Containers VSCode Extension](https://code.visualstudio.com/docs/devcontainers/containers).
 
-### Step 1: Clone the Repository
+
+## Cloning the Repository
 
 Clone the `NOTSOFAR1-Challenge` repository from GitHub. Open your terminal and run the following command:
 
 ```bash
 sudo apt-get install git
+cd path/to/your/projects/directory
 git clone https://github.com/microsoft/NOTSOFAR1-Challenge.git
 ```
-**Note**: this repository is still private, you will need to be added as a contributor to clone it. <br>
 
-###### Cloning using Github Username
-If you encounter an `Repository not found` error, try cloning the repository using the following command: <br>
+
+## Setting up the environment
+
+### Conda
+
+#### Step 1: Install Conda
+
+Conda is a package manager that is used to install Python and other dependencies.<br>
+To install Miniconda, which is a minimal version of Conda, run the following commands:
 
 ```bash
-git clone https://<github_username>@github.com/microsoft/NOTSOFAR1-Challenge.git
+miniconda_dir="$HOME/miniconda3"
+script="Miniconda3-latest-Linux-$(uname -m).sh"
+wget --tries=3 "https://repo.anaconda.com/miniconda/${script}"
+bash "${script}" -b -p "${miniconda_dir}"
+export PATH="${miniconda_dir}/bin:$PATH"
 ````
+*** You may change the `miniconda_dir` variable to install Miniconda in a different directory.
 
-###### Cloning using Github Token
-1. Create the token: <br>
-   Go to GitHub Settings > Developer Settings > Personal Access Tokens > Generate New Token (classic) > Mark repo (with all sub items) > Click Create
-2. Use the token to clone:
+
+#### Step 2: Create a Conda Environment 
+
+Conda Environments are used to isolate Python dependencies. <br> 
+To set it up, run the following commands:
+
 ```bash
-git clone https://<token>@github.com/microsoft/NOTSOFAR1-Challenge.git
-````
-**Note**: the token is private, do not share it with anyone!
+source "/path/to/conda/dir/etc/profile.d/conda.sh"
+conda create --name notsofar python=3.10 -y
+conda activate notsofar 
+cd /path/to/NOTSOFAR-Repo
+python -m pip install --upgrade pip
+pip install --upgrade setuptools wheel Cython fasttext-wheel
+pip install azure-cli 
+pip install -r requirements.txt
+```
 
+### PIP
 
-### Step 2: Install Python 3.10
+#### Step 1: Install Python 3.10
 
 Python 3.10 is required to run the project. To install it, run the following commands:
 
@@ -52,9 +78,10 @@ sudo apt update
 sudo apt install python3.10
 ```
 
-### Step 3: Set Up the Python Virtual Environment
+#### Step 2: Set Up the Python Virtual Environment
 
-Python virtual environments are used to isolate Python dependencies. To set it up, run the following commands:
+Python virtual environments are used to isolate Python dependencies. <br> 
+To set it up, run the following commands:
 
 ```bash
 sudo apt-get install python3.10-venv
@@ -62,7 +89,7 @@ python3.10 -m venv /path/to/virtualenvs/NOTSOFAR
 source /path/to/virtualenvs/NOTSOFAR/bin/activate
 ```
 
-### Step 4: Install Python Dependencies
+#### Step 3: Install Python Dependencies
 
 Navigate to the cloned repository and install the required Python dependencies:
 
@@ -72,9 +99,10 @@ python -m pip install --upgrade pip
 pip install --upgrade setuptools wheel Cython fasttext-wheel
 sudo apt-get install python3.10-dev ffmpeg build-essential
 pip install -r requirements.txt
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
-### Step 5: Install Azure CLI
+#### Step 4: Install Azure CLI
 
 Azure CLI is required to download the datasets. To install it, run the following commands:
 
@@ -167,10 +195,16 @@ calculate the loss when training.
 
 # NOTSOFAR-1 Datasets - Download Instructions
 The NOTSOFAR-1 Challenge provides two datasets: a recorded meeting dataset and a simulated training dataset. <br>
-This section is for those who are specifically interested in downloading these datasets.
-The datasets are stored in Azure Blob Storage, to download them, you will need to install `Azure CLI` ([Project Setup > step 5](###-Step-5:-Install-Azure-CLI)).
+This section is for those who are specifically interested in downloading these datasets.<br>
+The datasets are stored in Azure Blob Storage, to download them, you will need to install `Azure CLI` (part of the environment setup instructions above).
 
-You can use either the python utilities in `utils/azure_storage.py` or the `az storage blob download-batch` command to download the datasets as described below.
+To install Azure CLI, run the following command:
+```bash
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+```
+
+
+You can use either the python utilities in `utils/azure_storage.py` or the `az storage copy` command to download the datasets as described below.
 
 
 ### Meeting Dataset for Benchmarking and Training
@@ -185,7 +219,8 @@ To download the dataset, replace the arguments and run the following command:
 `--include-path` - replace with the dataset you want to download: <br>
 - `subset_name`: name of split to download (`dev_set` / `eval_set` / `train_set`).
 - `version`: version to download (`240103g` / etc.). it's best to use the latest.
-Currently only **dev_set** is available. See timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index) for when the other sets will be released.
+Currently only **dev_set** (no GT) and **train_set** are available. See timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index) for when the other sets will be released.
+See doc in `download_meeting_subset` function in `utils/azure_storage.py` for latest available versions.
 
 ```bash
 az storage copy --recursive --only-show-errors --destination <path to NOTSOFAR datasets>/benchmark --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --include-path <subset_name>/<version>/MTG

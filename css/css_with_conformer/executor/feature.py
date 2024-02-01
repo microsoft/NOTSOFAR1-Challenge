@@ -475,17 +475,23 @@ class FeatureExtractor(nn.Module):
     def istft(self, m, p, cplx=False):
         return self.inverse_stft(m, p, cplx=cplx)
 
-    def compute_spectra(self, x):
+    def compute_spectra(self, mix, mag=None, pha=None):
         """
         Compute spectra features
         args
-            x: N x C x S (multi-channel) or N x S (single channel)
+            mix: N x C x S (multi-channel) or N x S (single channel)
+            mag: optional pre-computed tensor of shape: N x F x T or N x C x F x T.
+                if available, stft computation is skipped.
+            pha: same as above.
+
         return:
             mag & pha: N x F x T or N x C x F x T
             feature: N x * x T
         """
         # mag & pha: N x C x F x T or N x F x T
-        mag, pha = self.forward_stft(x)
+        if mag is None:
+            # if mag/pha not pre-computed
+            mag, pha = self.forward_stft(mix)
         # ch0: N x F x T
         if mag.dim() == 4:
             f = th.clamp(mag[:, 0], min=EPSILON)
@@ -501,19 +507,19 @@ class FeatureExtractor(nn.Module):
                                                   EPSILON)
         return mag, pha, f
 
-    def compute_spatial(self, x, doa=None, pha=None):
+    def compute_spatial(self, mix, doa=None, pha=None):
         """
         Compute spatial features
         args
-            x: N x C x S (multi-channel)
+            mix: N x C x S (multi-channel)
             pha: N x C x F x T
         return
             feature: N x * x T
         """
         if pha is None:
-            self._check_args(x, doa)
+            self._check_args(mix, doa)
             # mag & pha: N x C x F x T
-            _, pha = self.forward_stft(x)
+            _, pha = self.forward_stft(mix)
         else:
             if pha.dim() != 4:
                 raise RuntimeError("Expect phase matrix a 4D tensor, " +
@@ -534,21 +540,26 @@ class FeatureExtractor(nn.Module):
         feature = th.cat(feature, 1)
         return feature
 
-    def forward(self, x, doa=None, ref_channel=0):
+    def forward(self, mix=None, doa=None, ref_channel=0, mag=None, pha=None):
         """
         args
-            x: N x C x S (multi-channel) or N x S (single channel)
+            mix: N x C x S (multi-channel) or N x S (single channel)
             doa: N or [N, ...] (for each speaker)
+            mag: optional pre-computed tensor of shape: N x F x T or N x C x F x T.
+                if available, stft computation is skipped.
+            pha: same as above.
         return:
             mag & pha: N x F x T (if ref_channel is not None), N x C x F x T
             feature: N x * x T
         """
-        self._check_args(x, doa)
+        assert (mag is None) == (pha is None)
+        if mag is None:
+            self._check_args(mix, doa)
         # mag & pha: N x C x F x T or N x F x T
-        mag, pha, f = self.compute_spectra(x)
+        mag, pha, f = self.compute_spectra(mix, mag, pha)
         feature = [f]
         if self.has_spatial:
-            spatial = self.compute_spatial(x, pha=pha, doa=doa)
+            spatial = self.compute_spatial(mix, pha=pha, doa=doa)
             feature.append(spatial)
         # N x * x T
         feature = th.cat(feature, 1)

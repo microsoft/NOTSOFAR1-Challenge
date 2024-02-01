@@ -36,7 +36,8 @@ def merge_words_to_segments_by_spk_change(all_words: list) -> dict:
 
 def prepare_diarized_data_frame(all_words, segments_df):
     # cut word sequence into segments according to speaker change
-    segments = merge_words_to_segments_by_spk_change(all_words)
+    all_words_sorted = sorted(all_words, key=lambda x:x[2])     # sort words by end time
+    segments = merge_words_to_segments_by_spk_change(all_words_sorted)
     
     diarized_segments_df = pd.DataFrame(
         {'start_time': [seg[0][1] for seg in segments["word_timing"]],
@@ -46,7 +47,7 @@ def prepare_diarized_data_frame(all_words, segments_df):
         
     diarized_segments_df['meeting_id'] = segments_df['meeting_id'][0]
     diarized_segments_df['session_id'] = segments_df['session_id'][0]
-    diarized_segments_df['wav_file_names'] = segments_df['wav_file_names'][0]
+    diarized_segments_df['wav_file_name'] = segments_df['wav_file_name'][0]
     diarized_segments_df['speaker_id'] = segments["speaker_id"]
     
     return diarized_segments_df

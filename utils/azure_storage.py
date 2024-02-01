@@ -36,7 +36,7 @@ def download_blob_container_dir(azure_source_dir: str, destination_dir: str, con
         local_output_dir = os.path.join(destination_dir, azure_source_dir).replace(
             '\\', os.sep).replace('/', os.sep)
 
-    if os.path.exists(destination_dir) and not overwrite:
+    if os.path.exists(local_output_dir) and not overwrite:
         _LOG.info(f'{destination_dir} already exists, skipping download')
         return local_output_dir
 
@@ -56,14 +56,17 @@ def download_blob_container_dir(azure_source_dir: str, destination_dir: str, con
             subprocess.run(command, shell=True, check=True)
             _LOG.info(f'download completed successfully, time: {time.time() - start_time:.0f} seconds')
         except subprocess.CalledProcessError as e:
-            _LOG.error(f'failed to download `{azure_source_dir}` from `{container_name}` to `{local_output_dir}`: {e}')
+            _LOG.error(f'failed to download `{azure_source_dir}` '
+                       f'from `{container_name}` to `{local_output_dir}`: {e}')
             return None
 
         if os.path.exists(destination_dir) and overwrite:
             _LOG.debug(f'Deleting existing destination dir: {destination_dir}')
             shutil.rmtree(destination_dir)
 
-        temp_output_dir = os.path.join(temp_dir, container_name, azure_source_dir).replace('\\', os.sep).replace('/', os.sep)
+        temp_output_dir = (os.path.join(temp_dir, container_name, azure_source_dir)
+                           .replace('\\', os.sep)
+                           .replace('/', os.sep))
         shutil.move(temp_output_dir, local_output_dir)
     return local_output_dir
 
@@ -82,6 +85,17 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
         destination_dir: path to the directory where files will be downloaded.
         overwrite: whether to override the output file if it already exists
                    (warning!: if true, will delete the entire destination_dir if it exists)
+
+
+    Latest available datsets:
+
+    # dev_set, no GT available. submit your systems to leaderboard to measure WER.
+    res_dir = download_meeting_subset(subset_name='dev_set', version='240130.1_dev', destination_dir=...)
+
+    # train_set, with GT for training models.
+    res_dir = download_meeting_subset(subset_name='train_set', version='240130.1_train', destination_dir=...)
+
+
     Returns:
         a string indicates the output directory path, or None if the download failed
     """
@@ -110,10 +124,12 @@ def download_simulated_subset(version: str, volume: Literal['200hrs', '1000hrs']
     container_name = 'css-datasets'
     azure_dir = '/'.join([version, volume, subset_name])
     return download_blob_container_dir(azure_source_dir=azure_dir, destination_dir=destination_dir,
-                                       container_name=container_name, overwrite=overwrite, keep_structure=True)
+                                       container_name=container_name, overwrite=overwrite,
+                                       keep_structure=True)
 
 
-def download_models(destination_dir: str, pattern: Optional[str] = None, overwrite: bool = False) -> Optional[str]:
+def download_models(destination_dir: str, pattern: Optional[str] = None,
+                    overwrite: bool = False) -> Optional[str]:
     """
     Download the models to the destination directory
     Args:
@@ -127,9 +143,10 @@ def download_models(destination_dir: str, pattern: Optional[str] = None, overwri
         a string indicates the output directory path, or None if the download failed
     """
     container_name = 'css-models'
-    azure_dir = f'{f"/{pattern}" if pattern is not None else ""}'
+    azure_dir = f'{f"{pattern}" if pattern is not None else ""}'
     return download_blob_container_dir(azure_source_dir=azure_dir, destination_dir=destination_dir,
-                                       container_name=container_name, overwrite=overwrite, keep_structure=True)
+                                       container_name=container_name, overwrite=overwrite,
+                                       keep_structure=True)
 
 
 def main():
@@ -140,18 +157,23 @@ def main():
 
     with tempfile.TemporaryDirectory() as temp_dir:
         _LOG.info(f'created temp dir: {temp_dir}')
+
+        models_path = download_models(
+            destination_dir=os.path.join(temp_dir, 'models'), pattern='notsofar/conformer0.5/mc')
+        print(models_path)
+
         dev_set_dir = download_meeting_subset(
-            subset_name='dev_set', version='240103g', destination_dir=os.path.join(temp_dir, 'benchmark'))
+            subset_name='dev_set', version='240130.1_dev',
+            destination_dir=os.path.join(temp_dir, 'meeting_data'))
         print(dev_set_dir)
 
         train_set_path = download_simulated_subset(
-            version='v1.4', volume='1000hrs', subset_name='train', destination_dir=os.path.join(temp_dir, 'train'))
+            version='v1.4', volume='1000hrs', subset_name='train',
+            destination_dir=os.path.join(temp_dir, 'simulated_train'))
         print(train_set_path)
-
-        models_path = download_models(
-            destination_dir=os.path.join(temp_dir, 'models'), pattern='notsofar/mc')
-        print(models_path)
 
 
 if __name__ == '__main__':
     main()
+
+

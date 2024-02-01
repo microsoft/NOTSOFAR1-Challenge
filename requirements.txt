@@ -3,16 +3,19 @@ git+https://github.com/openai/whisper.git
 pandas==1.5.2
 scipy==1.11.4
 soundfile==0.12.1
-meeteval==0.1.0
 omegaconf==2.3.0
 psutil== 5.9.7
 sounddevice==0.4.6
 tqdm==4.66.1
 ffmpeg
+librosa==0.10.1
+matplotlib==3.8.2
 # Note that CUDA drivers are backward-compatible in some cases. See https://docs.nvidia.com/deploy/cuda-compatibility/.
 -f https://download.pytorch.org/whl/cu117/torch_stable.html
 torch==1.13.1+cu117
 torchaudio==0.13.1+cu117
 torchvision==0.14.1+cu117
-git+https://github.com/gburlet/YouTokenToMe.git@dependencies    # https://github.com/VKCOM/YouTokenToMe/pull/108
 nemo_toolkit[all]
+# use branch with tcorcwer instead of meeteval==0.1.0
+git+https://github.com/fgnt/meeteval.git@tcorcwer
+simplejson==3.19.2  # missing depencency of meeteval branch

@@ -5,28 +5,28 @@ asr:
   model_name: 'large-v2'
 
 css:
-  # css will pass through mic0 in MC sessions and the channel as is in SC sessions
-  pass_through_ch0: True
-  segment_size: 3.
-  hop_size: 1.5
+  segment_size_sec: 3.
+  hop_size_sec: 1.5
   device: "cuda:0"
   show_progressbar: True
+  slice_audio_for_debug: False
 
 diarization:
-  method: 'word_nmesc'     # choose from "nmesc" and "nmesc_msdd"
+  method: 'word_nmesc'     # choose from "word_nmesc", "nmesc" and "nmesc_msdd"
   min_embedding_windows: [3.0,2.5,2.0,1.5,1.0,0.5]
   embedding_model_name: "titanet_large"
   msdd_model_name: "diar_msdd_telephonic"
   # vad_model_name: "vad_telephony_marblenet"    # for 8kHz telephone
   vad_model_name: "vad_multilingual_marblenet"   # for 16kHz
 
+scoring:
+  save_visualizations: False
 
-
-# one MC session:
-#session_query: 'device_name == "rockfall_0" and is_mc == True and meeting_id == "MTG_30830"'
+## one MC session:
+#session_query: 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30891"'
 
 # one SC session:
-#session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'
+#session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30891"'
 
 # all sessions:
 session_query: null

@@ -38,7 +38,7 @@ class Executor(nn.Module):
         if not self.extractor:
             raise RuntimeError("self.extractor is None, "
                                "do not need to compute features")
-        mag, pha, f = self.extractor(egs["mix"])
+        mag, pha, f = self.extractor(**egs)
         return mag, pha, f
 
     def forward(self, egs):

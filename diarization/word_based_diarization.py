@@ -55,7 +55,7 @@ def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_em
     all_word_embeddings = []
     for _, seg in segments_df.iterrows():
         # get the unmixed channel id for current segment
-        channel_id = int(os.path.splitext(os.path.basename(seg.wav_file_names))[0][-1])
+        channel_id = int(os.path.splitext(os.path.basename(seg.wav_file_name))[0][-1])
 
         for word in seg["word_timing"]:
             start_time = word[1]

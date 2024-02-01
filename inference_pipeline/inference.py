@@ -12,11 +12,11 @@ from diarization.diarization_common import DiarizationCfg
 from inference_pipeline.load_meeting_data import load_data
 from utils.conf import get_conf
 from utils.azure_storage import download_meeting_subset, download_models
-from utils.scoring import calc_tcpwer, write_transcript_to_stm
+from utils.scoring import ScoringCfg, calc_wer, write_transcript_to_stm
 import tqdm
 
 
-_LOG = logging.getLogger('inference_pipeline')
+_LOG = logging.getLogger('inference')
 
 
 @dataclass
@@ -24,10 +24,11 @@ class InferenceCfg:
     css: CssCfg = field(default_factory=CssCfg)
     asr: WhisperAsrCfg = field(default_factory=WhisperAsrCfg)
     diarization: DiarizationCfg = field(default_factory=DiarizationCfg)
+    scoring: ScoringCfg = field(default_factory=ScoringCfg)
     # Optional: Query to filter all_session_df. Useful for debugging. Must be None during full evaluation.
     session_query: Optional[str] = None
 
-
+@dataclass
 class FetchFromCacheCfg:
     css: bool = False
     asr: bool = False
@@ -36,7 +37,7 @@ class FetchFromCacheCfg:
 
 def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: InferenceCfg,
                        cache: FetchFromCacheCfg):
-    f"""
+    """
     Run the inference pipeline on all sessions in the meetings_dir.
     
     Args:
@@ -51,11 +52,12 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
             or set to False.
     """
     # Load all meetings from the meetings dir
+    _LOG.info(f'loading meetings from: {meetings_dir}')
     all_session_df, all_gt_utt_df, all_gt_metadata_df = load_data(meetings_dir, cfg.session_query)
 
     # Process each session independently. (Cross-session information is not permitted)
     wer_series_list = []
-    for session_name, session in tqdm.tqdm(all_session_df.iterrows()):
+    for session_name, session in tqdm.tqdm(all_session_df.iterrows(), desc='processing sessions'):
 
         # Front-end: split session into enhanced streams without overlap speech
         session: pd.Series = css_inference(out_dir, models_dir, session, cfg.css, cache.css)
@@ -69,38 +71,68 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
                                                                      cfg.diarization,
                                                                      cache.diarization)
 
-        # Write hypothesis transcription to: outdir / tcpwer / session_id / hyp.stm
-        # To submit your system for evaluation, send us the contents of: outdir / tcpwer
-        hyp_stm = write_transcript_to_stm(out_dir, attributed_segments_df, cfg.asr.text_normalizer(),
-                                          session.session_id)
+        # Write hypothesis transcription to: outdir / wer / {multi|single}channel /.../ *.stm
+        # To submit your system for evaluation, send us the contents of: outdir / wer / {multi|single}channel
+        tcp_wer_hyp_stm, tcorc_wer_hyp_stm = (
+            write_hyp_transcripts(out_dir, session.session_id, attributed_segments_df,
+                                  cfg.asr.text_normalizer()))
 
-        # Rules: WER metric, arguments (collar), and text normalizer must remain unchanged
-        session_wer: pd.Series = calc_tcpwer(out_dir,
-                                             hyp_stm,
-                                             session.session_id,
-                                             get_session_gt(session, all_gt_utt_df),
-                                             cfg.asr.text_normalizer(), collar=5)
-        wer_series_list.append(session_wer)
-        print(f"tcp_wer = {session_wer.tcp_wer:.4f} for session {session_wer.session_id}")
+        # Calculate WER if GT is available
+        if all_gt_utt_df is not None:
+            # Rules: WER metric, arguments (collar), and text normalizer must remain unchanged
+            session_wer: pd.Series = calc_wer(out_dir,
+                                              tcp_wer_hyp_stm,
+                                              tcorc_wer_hyp_stm,
+                                              session.session_id,
+                                              get_session_gt(session, all_gt_utt_df),
+                                              cfg.asr.text_normalizer(),
+                                              collar=5,
+                                              save_visualizations=cfg.scoring.save_visualizations)
+            wer_series_list.append(session_wer)
+            _LOG.info(f"tcp_wer = {session_wer.tcp_wer:.4f} for session {session_wer.session_id}")
 
+    if wer_series_list:
+        # if GT is available, aggregate WER.
+        all_session_wer_df = pd.DataFrame(wer_series_list)
+        _LOG.info(f'Results:\n{all_session_wer_df}')
+        _LOG.info(f'mean tcp_wer = {all_session_wer_df["tcp_wer"].mean()}')
+        _LOG.info(f'mean tcorc_wer = {all_session_wer_df["tcorc_wer"].mean()}')
 
-    all_session_wer_df = pd.DataFrame(wer_series_list)    
-    print(all_session_wer_df.drop(["hyp_file_name", "ref_file_name", "assignment"], axis=1))
-    print(f'mean tcp_wer = {all_session_wer_df["tcp_wer"].mean()}')
-
-    # write session level results into a file
-    exp_id = "_".join([os.path.basename(cfg.css.checkpoint_sc), 
-                       cfg.asr.model_name,
-                       cfg.diarization.method])
-    os.makedirs(os.path.join(out_dir, "results"), exist_ok=True)
-    result_file = os.path.join(out_dir, "results", exp_id+".tsv")
-    print(f"Dump results to {result_file}")
-    all_session_wer_df.to_csv(result_file, sep="\t")
-
-    # TODO SAgWER
-    # TODO confidence intervals, WER per meta-data
+        # write session level results into a file
+        exp_id = "_".join([os.path.basename(cfg.css.checkpoint_sc),
+                           cfg.asr.model_name,
+                           cfg.diarization.method])
+        os.makedirs(os.path.join(out_dir, "results"), exist_ok=True)
+        result_file = os.path.join(out_dir, "results", exp_id+".tsv")
+        _LOG.info(f"Results can be found on: {result_file}")
+        all_session_wer_df.to_csv(result_file, sep="\t")
+        # TODO confidence intervals, WER per meta-data
 
 
 def get_session_gt(session: pd.Series, all_gt_utt_df: pd.DataFrame):
     return all_gt_utt_df[all_gt_utt_df['meeting_id'] == session.meeting_id]
 
+
+def write_hyp_transcripts(out_dir, session_id, attributed_segments_df: pd.DataFrame, text_normalizer):
+    _LOG.info(f'Writing hypothesis transcripts for session {session_id}')
+    # hyp file for tcpWER, the metric used for ranking.
+    # MeetEval requires stream _id, which for tcpWER is the same as speaker_id.
+    df = attributed_segments_df.copy()
+    df['stream_id'] = df['speaker_id']
+    tcp_wer_hyp_stm = write_transcript_to_stm(out_dir, df, text_normalizer,
+                                              session_id, 'tcp_wer_hyp.stm')
+
+    # hyp file for tcORC-WER, a supplementary metric for analysis.
+    # MeetEval requires stream _id, which for tcORC-WER depends on the system.
+    # In NOTSOFAR we define the streams as the outputs of CSS (continuous speech separation).
+    # If your system does not have CSS you need to define the streams differently.
+    # For example: for end-to-end multi-talker ASR you might use a single stream.
+    # Overlap speech should go into different streams,
+    # or appear in one stream but respecting the order in reference. See https://github.com/fgnt/meeteval.
+    df = attributed_segments_df.copy()
+    # Use factorize to map each unique wav_file_name to an index.
+    df['stream_id'], uniques = pd.factorize(df['wav_file_name'], sort=True)
+    _LOG.debug(f'Found {len(uniques)} streams for tc_orc_wer_hyp.stm')
+    tcorc_wer_hyp_stm= write_transcript_to_stm(out_dir, df, text_normalizer,
+                                               session_id, 'tc_orc_wer_hyp.stm')
+    return tcp_wer_hyp_stm, tcorc_wer_hyp_stm

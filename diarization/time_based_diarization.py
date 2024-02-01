@@ -123,7 +123,7 @@ def assign_words_to_speakers(segments_df: pd.DataFrame, spk_vad: np.array, vad_t
     all_words = []
     for _, seg in segments_df.iterrows():
         # get the unmixed channel id for current segment
-        channel_id = int(os.path.splitext(os.path.basename(seg.wav_file_names))[0][-1])
+        channel_id = int(os.path.splitext(os.path.basename(seg.wav_file_name))[0][-1])
 
         for i, word in enumerate(seg["word_timing"]):
             start_frame = int(np.round(word[1]/vad_time_resolution))
@@ -163,10 +163,7 @@ def time_based_diarization(wav_files_sorted, segments_df, output_dir, cfg):
     to add a speaker label to each recognized word. 
     """
     # Step 1. Run NeMo diarization
-    done_file = os.path.join(output_dir, "DONE")
-    if not os.path.isfile(done_file):
-        channel_spk_vad = run_nemo_diarization(wav_files_sorted, output_dir, cfg)
-        os.system(f"touch {done_file}")
+    channel_spk_vad = run_nemo_diarization(wav_files_sorted, output_dir, cfg)
 
     # Step 2. Assign ASR words to diarized speakers
     attributed_segments_df = assign_words_to_speakers(segments_df, channel_spk_vad)

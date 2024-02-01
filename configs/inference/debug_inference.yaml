@@ -5,10 +5,11 @@ asr:
   model_name: 'tiny'
 
 css:
-  segment_size: 3.
-  hop_size: 1.5
+  segment_size_sec: 3.
+  hop_size_sec: 1.5
   device: "cuda:0"
   show_progressbar: True
+  slice_audio_for_debug: False
 
 diarization:
   method: 'word_nmesc'     # choose from "word_nmesc", "nmesc" and "nmesc_msdd"
@@ -20,8 +21,8 @@ diarization:
 
 
 
-# one SC session:
-session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'
+## one SC session:
+#session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "MTG_30830"'
 
 # Plaza SC sessions that are not read meetings:
 #session_query: 'device_name == "plaza_0" and is_mc == False and ~MtgType.str.startswith("read")'
@@ -34,7 +35,7 @@ session_query: 'device_name == "plaza_0" and is_mc == False and meeting_id == "M
 #session_query: 'is_mc == True and ~MtgType.str.startswith("read")'
 
 # one MC session:
-#session_query: 'is_mc == True and meeting_id == "MTG_30830" and device_name == "rockfall_0"'
+session_query: 'is_mc == True and meeting_id == "MTG_30830" and device_name == "rockfall_0"'
 
 
 # Note: "read" meetings are essentially debug meetings thta have a person reading a predefined text.

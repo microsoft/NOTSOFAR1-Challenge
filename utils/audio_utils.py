@@ -34,12 +34,13 @@ def read_wav(fname, beg=None, end=None, normalize=True, return_rate=False):
     return samps
 
 
-def write_wav(fname, samps, sr=16000, max_norm: bool = True):
+def write_wav(fname, samps: np.ndarray, sr=16000, max_norm: bool = True):
     """
     Write wav to file
 
     max_norm: normalize to [-1, 1] to avoid potential overflow.
     """
+    assert samps.ndim == 1
     if max_norm:
         samps = samps * 0.99 / np.max(np.abs(samps))
 

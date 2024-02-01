@@ -19,24 +19,22 @@ if __name__ == "__main__":
     # _LOG.info('display options:\n%s', pprint.pformat(pd.options.display.__dict__, indent=4))
     project_root = Path(__file__).parent
 
-
-    config_name: Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_1_sc'] = 'full_dev_set_mc'
+    config_name: Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_1_mc'] = 'dev_set_1_mc'
 
     if config_name == 'full_dev_set_mc':
         # pass-through CSS, large-v2 Whisper, all multi-channel (MC) dev-set sessions
-        conf_file = project_root / 'configs/inference/css_passthrough_ch0.yaml'
+        conf_file = project_root / 'configs/inference/inference_v1.yaml'
         session_query = "is_mc == True"  # filter only MC
 
     elif config_name == 'full_dev_set_sc':
         # pass-through CSS, large-v2 Whisper, all single-channel (SC) dev-set sessions
-        conf_file = project_root / 'configs/inference/css_passthrough_ch0.yaml'
+        conf_file = project_root / 'configs/inference/inference_v1.yaml'
         session_query = "is_mc == False"  # filter only SC
 
-    elif config_name == 'dev_set_1_sc':
+    elif config_name == 'dev_set_1_mc':
         # for quick debug: pass-through CSS, tiny Whisper, one MC (multi-channel) session
-        conf_file = project_root / 'configs/inference/css_passthrough_ch0_debug.yaml'
-        cfg: InferenceCfg = get_conf(str(conf_file), InferenceCfg)
-        session_query = None  # yaml already sets session_query
+        conf_file = project_root / 'configs/inference/inference_v1.yaml'
+        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30891"'
     else:
         raise ValueError(f'unknown config name: {config_name}')
 
@@ -45,12 +43,12 @@ if __name__ == "__main__":
         assert cfg.session_query is None, 'overriding session_query from yaml'
         cfg.session_query = session_query
 
-
     # download the entire dev-set (all sessions, multi-channel and single-channel)
     meetings_root = project_root / 'artifacts' / 'meeting_data'
-    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',
-                                               version='240121_dev',
+    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',  # dev-set is without GT for now
+                                               version='240130.1_dev',
                                                destination_dir=str(meetings_root))
+
     if dev_meetings_dir is None:
         raise RuntimeError('failed to download benchmark dataset')
 

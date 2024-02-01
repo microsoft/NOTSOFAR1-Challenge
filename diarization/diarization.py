@@ -1,16 +1,17 @@
 import os
-import shutil
+import logging
 import pandas as pd
-import numpy as np
+from pathlib import Path
 
-from utils.audio_utils import read_wav, write_wav
 from diarization.diarization_common import DiarizationCfg
 from diarization.time_based_diarization import time_based_diarization
 from diarization.word_based_diarization import word_based_clustering
 
+_LOG = logging.getLogger('diarization')
+
 
 def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: DiarizationCfg,
-                          fetch_from_cache: bool, simulate_css: bool=False) -> pd.DataFrame:
+                          fetch_from_cache: bool) -> pd.DataFrame:
     """
     Run diarization to assign a speaker label to each ASR word.
 
@@ -39,53 +40,36 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
             'word_timing': a list of [word, start, end] lists.
             'meeting_id': the meeting id.
             'session_id': the session id.
+            'wav_file_name': the name of the wav file that the segment was transcribed from.
         cfg: diarization configuration.
-        overwrite: whether to overwrite previously generated diarizaiton files
-        simulate_css: a temporary option that simulates multiple CSS unmixed channels
-            so we can test whether diarization works with CSS outputs.
+        fetch_from_cache: If True, returns the cached results if they exist. Otherwise, runs the inference.
     Returns:
         attributed_segments_df: a new set of segments with 'speaker_id' column added.
     """
 
-    print("Running Speaker Diarization")
+    _LOG.info("Running Speaker Diarization")
 
     assert segments_df.session_id.nunique() <= 1, 'no cross-session information is permitted'
-    assert segments_df.wav_file_names.nunique() <= 3, 'expecting at most three separated channels'
+    assert segments_df.wav_file_name.nunique() <= 3, 'expecting at most three separated channels'
 
     session_name = segments_df.session_id[0]
     
-    output_dir = os.path.join(out_dir, "diarization", session_name, cfg.method)
-    assert not fetch_from_cache, 'needs support'
+    output_dir = Path(out_dir) / "diarization" / session_name / cfg.method
+    out_file = output_dir / "all_segments_df.pkl"
+
+    if fetch_from_cache and out_file.exists():
+        attributed_segments_df = pd.read_pickle(out_file)
+        return attributed_segments_df
+
+    wav_files_sorted = sorted(segments_df.wav_file_name.unique())
     os.makedirs(output_dir, exist_ok=True)
-    
-    if simulate_css:
-        # simulate CSS audio channels
-        # randomly assign the ASR segments into one of the three CSS unmixed channels
-        seg = segments_df.iloc[0]
-        sr, wav = read_wav(seg['wav_file_names'], normalize=True, return_rate=True)
-        channel_segments = [[], [], []]
-        new_seg_wav_files = []
-        for _, seg in segments_df.iterrows():
-            channel_id = np.random.randint(0, 3)
-            channel_segments[channel_id].append([seg.start_time, seg.end_time])
-            new_seg_wav_files.append(os.path.join(output_dir, f"ch{channel_id}.wav"))
-        segments_df.wav_file_names = new_seg_wav_files
-        
-        css_wavs = np.zeros((3, wav.size))
-        for channel_id, seg_times in enumerate(channel_segments):
-            for seg in seg_times:
-                idx1 = int(seg[0]*sr)
-                idx2 = int(seg[1]*sr)
-                css_wavs[channel_id][idx1:idx2] = wav[idx1:idx2]
-        for channel_id in range(3):
-            write_wav(os.path.join(output_dir, f"ch{channel_id}.wav"), css_wavs[channel_id])   
-        # end of simulation
-    
-    wav_files_sorted = sorted(segments_df.wav_file_names.unique())
-    
+
     if cfg.method == "word_nmesc":
         attributed_segments_df = word_based_clustering(wav_files_sorted, segments_df, cfg)
     else:
-        attributed_segments_df = time_based_diarization(wav_files_sorted, segments_df, output_dir, cfg)
-    
+        attributed_segments_df = time_based_diarization(wav_files_sorted, segments_df, str(output_dir), cfg)
+
+    attributed_segments_df.to_pickle(out_file)
+    _LOG.info(f'Speaker Diarization saved to {out_file}')
+
     return attributed_segments_df

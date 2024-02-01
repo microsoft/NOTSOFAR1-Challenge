@@ -63,6 +63,7 @@ class TrainCfg:
     learning_rate: float = 1e-3
     global_batch_size: int = 32  # global means across all GPUs, local means per GPU
     clip_grad_norm: float = 0.01
+    clip_gt_to_mixture: bool = False  # clips the ground truth to the mixture to avoid trying to drive the mask above 1
     weight_decay: float = 1e-4
     is_debug: bool = False  # no data workers, no DataParallel, etc. TODO: Test this functionality!
     log_params_mlflow: bool = True
@@ -83,6 +84,13 @@ class TrainCfg:
     save_every: Optional[Tuple] = None
     scheduler_step_every: Optional[Tuple] = (1, 'epochs')
     stop_after: Optional[Tuple] = (120, 'epochs')
+
+
+def get_model(cfg: TrainCfg):
+    if cfg.model_name == 'css_with_conformer':
+        return ConformerCssWrapper(cfg.conformer_css_cfg)
+    else:
+        raise ValueError(f'Unknown model name: {cfg.model_name}!')
 
 
 def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
@@ -128,13 +136,7 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
     torch.cuda.manual_seed(train_cfg.seed + 425291)
 
     # Instantiate the model
-    if train_cfg.model_name == 'css_with_conformer':
-        model = ConformerCssWrapper(train_cfg.conformer_css_cfg)
-    elif train_cfg.model_name == 'dummy':
-        # TODO: Remove before release.
-        model = DummyCss()
-    else:
-        raise ValueError(f'Unknown model name: {train_cfg.model_name}!')
+    model = get_model(train_cfg)
 
     # Move the model to the device
     model = model.to(device)
@@ -290,7 +292,7 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
                 batch = aug_fn(batch)
 
             # Calculate loss
-            loss = _calc_loss(batch, model, device, base_loss_fn, pit_loss)
+            loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=train_cfg.clip_gt_to_mixture)
 
             # with DataParallel, loss is either [Batch] or [#GPU] tensor depending on model
 
@@ -341,7 +343,8 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
 
                 # Get the worker-local metrics for train/val sets
                 train_metrics = {'loss': loss_sum, 'num_instances': num_instances}
-                val_metrics = eval_model(model, val_loader, device, base_loss_fn, pit_loss)
+                val_metrics = eval_model(model, val_loader, device, base_loss_fn, pit_loss,
+                                         clip_gt_to_mixture=train_cfg.clip_gt_to_mixture)
 
                 # Reduce the metrics to rank0
                 train_metrics = reduce_metrics_to_rank0(train_metrics, device, prefix='train/')
@@ -397,7 +400,7 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
     return full_out_dir
 
 
-def _calc_loss(segment_batch, model, device, base_loss_fn, pit_loss):
+def _calc_loss(segment_batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture: bool):
 
     ref_mic = 0  # reference microphone index
 
@@ -408,7 +411,7 @@ def _calc_loss(segment_batch, model, device, base_loss_fn, pit_loss):
     module = getattr(model, 'module', model)  # handle DP/DDP module attribute
     # Apply STFT on the mic0 mixture, take the magnitude, and add a singleton dimension to allow broadcasting
     # over speakers/noise.
-    mix_mic0_mag_ft = module.stft(mix[:, :, ref_mic])[0].unsqueeze(-1)  # -> magnitude [Batch, F, T, 1]
+    mix_mic0_mag_ft = module.stft(mix[:, :, ref_mic]).abs()[..., None]  # -> magnitude [Batch, F, T, 1]
 
     # Calculate speakers and noise magnitude spectrograms after masking
     pred_spks = res['spk_masks'] * mix_mic0_mag_ft  # -> [Batch, F, T, #spks]
@@ -417,8 +420,15 @@ def _calc_loss(segment_batch, model, device, base_loss_fn, pit_loss):
     pred_noise = pred_noise.squeeze(-1)  # -> [Batch, F, T]
 
     # Apply STFT on the ground truth signals and take the magnitude
-    gt_spks = _get_gt_mic0_stft_mag(segment_batch['gt_spk_direct_early_echoes'], model, device)  # -> [Batch, F, T, #spks]
-    gt_noise = module.stft(segment_batch['gt_noise'][:, :, ref_mic])[0]  # -> magnitude [Batch, F, T]
+    gt_spks = _get_gt_mic0_stft_mag(segment_batch['gt_spk_direct_early_echoes'], model, ref_mic)  # -> magnitude [Batch, F, T, #spks]
+    gt_noise = module.stft(segment_batch['gt_noise'][:, :, ref_mic]).abs() # -> magnitude [Batch, F, T]
+
+    # Clip the ground truth to the mixture to avoid trying to drive the mask above 1. Context: The CSS with Conformer
+    # model applies a sigmoid activation at the top.
+    if clip_gt_to_mixture:
+        gt_spks = torch.min(gt_spks, mix_mic0_mag_ft)
+        assert mix_mic0_mag_ft.shape[-1] == 1  # the last singleton dimension was added above, sanity check
+        gt_noise = torch.min(gt_noise, mix_mic0_mag_ft[..., 0])
 
     # Calculate the loss
     noise_loss = base_loss_fn(pred_noise, gt_noise).mean(dim=(1, 2))  # -> [Batch]
@@ -428,9 +438,9 @@ def _calc_loss(segment_batch, model, device, base_loss_fn, pit_loss):
     return loss.mean()
 
 
-def _get_gt_mic0_stft_mag(gt, model, device):
-    # Fetch mic0 and move to device
-    gt_mic0 = gt[:, :, 0, :]  # -> [Batch, T, Max_spks]
+def _get_gt_mic0_stft_mag(gt, model, ref_mic: int):
+    # Fetch mic0
+    gt_mic0 = gt[:, :, ref_mic, :]  # [Batch, T, Mics, Max_spks] -> [Batch, T, Max_spks]
     max_spks = gt_mic0.shape[-1]
 
     module = getattr(model, 'module', model)  # handle DP/DDP module attribute
@@ -438,16 +448,17 @@ def _get_gt_mic0_stft_mag(gt, model, device):
     # Collate the batch and max_spks dimensions
     gt_mic0 = gt_mic0.moveaxis(-1, 1).contiguous()  # -> [Batch, Max_spks, T]
     gt_mic0 = gt_mic0.view(-1, gt_mic0.shape[2])  # -> [Batch*Max_spks, T]
-    gt_ft = module.stft(gt_mic0)  # -> (mag, phase) tuple of [Batch*Max_spks, F, T, Mics]
+    gt_cplx_ft = module.stft(gt_mic0)  # -> complex [Batch*Max_spks, F, T]
 
     # Undo the collation. Work on the magnitude spectrograms only.
-    gt_mag_ft = gt_ft[0].view(-1, max_spks, *gt_ft[0].shape[1:])  # -> [Batch, Max_spks, F, T]
+    gt_mag_ft = gt_cplx_ft.abs()
+    gt_mag_ft = gt_mag_ft.view(-1, max_spks, * gt_mag_ft.shape[1:])  # -> [Batch, Max_spks, F, T]
     gt_mag_ft = gt_mag_ft.moveaxis(1, -1).contiguous()  # -> [Batch, F, T, Max_spks]
     return gt_mag_ft
 
 
 @torch.no_grad()
-def eval_model(model, dataloader, device, base_loss_fn, pit_loss):
+def eval_model(model, dataloader, device, base_loss_fn, pit_loss, clip_gt_to_mixture):
     """ Evaluate model. DistributedDataParallel (DDP) supported. """
 
     model.eval()
@@ -465,7 +476,7 @@ def eval_model(model, dataloader, device, base_loss_fn, pit_loss):
         batch = move_to(batch, device)
 
         # Calculate loss
-        loss = _calc_loss(batch, model, device, base_loss_fn, pit_loss)
+        loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=clip_gt_to_mixture)
 
         current_bs = batch['mixture'].shape[0]
         loss_sum += current_bs * loss.data.item()
@@ -560,18 +571,27 @@ def main():
     parser.add_argument('--data_root_out', default=None)
     args = parser.parse_args()
 
+    # debug_mc.yaml:
+    # 1. Sets is_debug=True, which turns off data workers, DataParallel etc. to ease debugging.
+    # 2. Uses the tiny sample_data/css_train_set as train and validation sets.
+
     # Take care of paths
     project_dir = Path(__file__).parents[2]
-    conf_path = str(project_dir / 'configs' / 'train_css' / 'train_local_debug.yaml') if args.conf is None \
+    conf_path = str(project_dir / 'configs' / 'train_css' / 'local' / 'debug_mc.yaml') if args.conf is None \
         else args.conf
-    data_root_in = project_dir if args.data_root_in is None else Path(args.data_root_in)
-    data_root_out = project_dir if args.data_root_out is None else Path(args.data_root_out)
+    data_root_in = project_dir if args.data_root_in is None \
+        else Path(args.data_root_in)
+    data_root_out = project_dir / 'artifacts' / 'outputs' / 'css_train' if args.data_root_out is None \
+        else Path(args.data_root_out)
 
     # Load the config
     train_cfg = utils.conf.get_conf(str(conf_path), TrainCfg)
 
     # Run training
     run_training_css(train_cfg, data_root_in, data_root_out)
+
+    # Once training is done, you can plug the checkpoint and yaml files into css_inference()
+    # (see load_separator_model() in css/css.py)
 
 
 if __name__ == '__main__':

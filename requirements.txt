@@ -18,4 +18,4 @@ torchvision==0.14.1+cu117
 nemo_toolkit[all]
 # use branch with tcorcwer instead of meeteval==0.1.0
 git+https://github.com/fgnt/meeteval.git@tcorcwer
-simplejson==3.19.2  # missing depencency of meeteval branch
+simplejson==3.19.2  # missing dependency of meeteval branch

@@ -19,6 +19,8 @@ from utils.audio_utils import write_wav
 from utils.mic_array_model import multichannel_mic_pos_xyz_cm
 from utils.conf import get_conf
 from utils.numpy_utils import dilate, erode
+from utils.plot_utils import plot_stitched_masks, plot_left_right_stitch
+from utils.audio_utils import play_wav
 
 
 # CSS inference configuration
@@ -98,7 +100,7 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
         mixwav = mixwav[np.newaxis, :, np.newaxis]  # [Batch, Nsamples, Channels]
 
     if cfg.slice_audio_for_debug:
-        mixwav = mixwav[:, 16000 * 18:16000 * 28, :]
+        mixwav = mixwav[:, sr*20:sr*30, :]
 
     separated_wavs = separate_and_stitch(mixwav, separator, sr, device, cfg)
 
@@ -213,6 +215,7 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     # segment processing happens on device
     separator.to(device)
 
+    # I. apply separator to each segment
     range_ = trange if cfg.show_progressbar else range
     for i in range_(num_segments):
         st = i * hop_frames
@@ -280,6 +283,7 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
 
     pit = PitWrapper({'mse': mse_loss, 'l1': l1_loss}[cfg.stitching_loss])
 
+    # II. stitch the separated segments together
     for i in range(1, num_segments):
         if cfg.stitching_input == 'mask':
             left_input, right_input = spk_masks_list[i-1], spk_masks_list[i]
@@ -292,56 +296,9 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
         assert left_input.shape[2] == right_input.shape[2] == segment_frames
         loss, right_perm = pit(left_input[:, :, -overlap_frames:], right_input[:, :, :overlap_frames])
 
-
-        # if False:  # plots
-        # ##
-        #     # x = masked_seg[..., 2]
-        #     # x = stft_seg_device_chref.cpu()
-        #     # x = (stft_seg_device * masks['noise_masks'].unsqueeze(-1))[:,:,:, 0]
-        #     x = masked_seg_list[i][..., 0]
-        #     separator.cpu()
-        #     wav = separator.istft(x).cpu().numpy()
-        #
-        #
-        #
-        #     # wav = speech_mix[..., 0]
-        #
-        #
-        #     import sounddevice as sd
-        #     sd.play(wav.squeeze() , fs)
-        #
-        # ##
-        #
-        #     left = left_input #[:, :, -overlap_frames:]
-        #     right =  right_input  #[:, :, :overlap_frames]
-        #     import matplotlib.pyplot as plt
-        #
-        #     num_spks = cfg.num_spks
-        #     # spk_masks = masks['spk_masks'].cpu().numpy()
-        #
-        #     plt.figure(figsize=(15, 5 * num_spks))
-        #     for j in range(num_spks):
-        #         plt.subplot(num_spks, 1, j + 1)
-        #         plt.imshow(left[0, :, :, j], aspect='auto', origin='lower')
-        #         plt.colorbar()
-        #         plt.title(f"Speaker {j + 1} Mask")
-        #         plt.xlabel("Time Frames")
-        #         plt.ylabel("Frequency Bins")
-        #     plt.suptitle('left')
-        #     plt.show()
-        #
-        #     plt.figure(figsize=(15, 5 * num_spks))
-        #     for j in range(num_spks):
-        #         plt.subplot(num_spks, 1, j + 1)
-        #         plt.imshow(right[0, :, :, right_perm[0][j]], aspect='auto', origin='lower')
-        #         plt.colorbar()
-        #         plt.title(f"Speaker {j + 1} Mask")
-        #         plt.xlabel("Time Frames")
-        #         plt.ylabel("Frequency Bins")
-        #     plt.suptitle('right')
-        #     plt.show()
-
-        ##
+        # Plot for debugging:
+        # plot_left_right_stitch(separator, left_input, right_input, right_perm,
+        #                        overlap_frames, cfg, stft_seg_to_play=masked_seg_list[i][..., 0], fs=fs)
 
         # permute current segment to match with the previous one
         for ib in range(batch_size):
@@ -362,6 +319,7 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     stft_stitched /= wg_stitched.view(1, 1, -1, 1)
     mask_stitched /= wg_stitched.view(1, 1, -1, 1)
 
+    # III. apply temporal segmentation mask
     assert batch_size == 1
     activity = mask_stitched.mean(dim=1)[0]  # [T, num_spks]
     activity_b = activity >= cfg.activity_th
@@ -369,42 +327,6 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     activity_final = [torch.from_numpy(erode(dilate(x.numpy(), dilation_frames), erosion_frames))
                       for x in th.unbind(activity_b, dim=1)]
     activity_final = th.stack(activity_final, dim=1)[None]  # [B, T, num_spks]
-
-    # if False:
-    #     ##
-    #     import matplotlib.pyplot as plt
-    #
-    #     activity = mask_stitched.mean(dim=1)  # [B, T, num_spks]
-    #     total_plots = cfg.num_spks * 2
-    #     time_frames = mask_stitched.size(2)  # Assuming the number of time frames is the third dimension
-    #
-    #     plt.figure(figsize=(15, 5 * total_plots))
-    #     for j in range(cfg.num_spks):
-    #         # Plot for mask_stitched
-    #         plt.subplot(total_plots, 1, 2 * j + 1)
-    #         plt.imshow(mask_stitched[0, :, :, j], aspect='auto', origin='lower')
-    #         # plt.colorbar()
-    #         plt.title(f"Speaker {j + 1} Mask")
-    #         # plt.xlabel("Time Frames")
-    #         plt.ylabel("Frequency Bins")
-    #         plt.xlim(0, time_frames - 1)  # Set x-axis limits
-    #
-    #         # Plot for activity
-    #         plt.subplot(total_plots, 1, 2 * j + 2)
-    #         plt.plot(activity[0, :, j], label='mean mask')
-    #         plt.plot(activity_b[:, j], label=f'thresh={cfg.activity_th}')
-    #         plt.plot(activity_final[0, :, j], label=f'dilate({cfg.activity_dilation_sec})->erode({cfg.activity_erosion_sec})')
-    #         plt.title(f"Speaker {j + 1} Activity")
-    #         # plt.xlabel("Time Frames")
-    #         plt.ylabel("Average Activity")
-    #         plt.xlim(0, time_frames - 1)  # Set x-axis limits to be the same as the mask_stitched plot
-    #         plt.ylim(0, 1.05)
-    #         plt.legend(loc='best')  # Add a legend
-    #
-    #     plt.suptitle('Speaker Masks and Activities')
-    #     plt.show()
-
-    ##
 
     assert activity_final.shape[1:] == stft_stitched.shape[2:]
     # apply segmentation mask to stft_stitched
@@ -422,12 +344,10 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     separated_wavs = [w.squeeze() for w in separated_wavs]  # num_spks list of [Nsamples]
     assert len(separated_wavs) == cfg.num_spks
 
-    ##
-    # import sounddevice as sd
-    # sd.play(separated_wavs[2], fs)
-    # sd.play(speech_mix[0,:, 0].cpu().numpy()*5, fs)
-
-    ##
+    # Plot for debugging:
+    # plot_stitched_masks(mask_stitched, activity_b, activity_final, cfg)
+    # play_wav(separated_wavs[2], fs, volume_factor=5.)
+    # play_wav(speech_mix[0,:, 0].cpu().numpy(), fs, volume_factor=5.)
 
     return separated_wavs
 

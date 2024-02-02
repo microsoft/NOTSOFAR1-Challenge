@@ -74,7 +74,7 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
         # Write hypothesis transcription to: outdir / wer / {multi|single}channel /.../ *.stm
         # To submit your system for evaluation, send us the contents of: outdir / wer / {multi|single}channel
         tcp_wer_hyp_stm, tcorc_wer_hyp_stm = (
-            write_hyp_transcripts(out_dir, session.session_id, attributed_segments_df,
+            write_hyp_transcripts(out_dir, session.session_id, attributed_segments_df, segments_df,
                                   cfg.asr.text_normalizer()))
 
         # Calculate WER if GT is available
@@ -113,7 +113,10 @@ def get_session_gt(session: pd.Series, all_gt_utt_df: pd.DataFrame):
     return all_gt_utt_df[all_gt_utt_df['meeting_id'] == session.meeting_id]
 
 
-def write_hyp_transcripts(out_dir, session_id, attributed_segments_df: pd.DataFrame, text_normalizer):
+def write_hyp_transcripts(out_dir, session_id,
+                          attributed_segments_df: pd.DataFrame,
+                          segments_df: pd.DataFrame,
+                          text_normalizer):
     _LOG.info(f'Writing hypothesis transcripts for session {session_id}')
     # hyp file for tcpWER, the metric used for ranking.
     # MeetEval requires stream _id, which for tcpWER is the same as speaker_id.
@@ -129,7 +132,11 @@ def write_hyp_transcripts(out_dir, session_id, attributed_segments_df: pd.DataFr
     # For example: for end-to-end multi-talker ASR you might use a single stream.
     # Overlap speech should go into different streams,
     # or appear in one stream but respecting the order in reference. See https://github.com/fgnt/meeteval.
-    df = attributed_segments_df.copy()
+
+    # Take wav_file_name from segments_df, rather than attributed_segments_df, since the latter is a result of
+    # diarizations, where the segments are built of words potentially coming from different channels.
+    # So, in the general case there is no meaningful "channel" that can be associated with a segment.
+    df = segments_df.copy()
     # Use factorize to map each unique wav_file_name to an index.
     df['stream_id'], uniques = pd.factorize(df['wav_file_name'], sort=True)
     _LOG.debug(f'Found {len(uniques)} streams for tc_orc_wer_hyp.stm')

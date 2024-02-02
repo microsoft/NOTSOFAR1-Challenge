@@ -86,8 +86,8 @@ def calc_wer(out_dir: str, tcp_wer_hyp_stm: str, tcorc_wer_hyp_stm: str,session_
 
     
     def save_wer_visualization(session: pd.Series):
-        ref = meeteval.io.load(session.ref_file_name).groupby('filename')
-        hyp = meeteval.io.load(session.hyp_file_name).groupby('filename')
+        ref = meeteval.io.load(session.ref_stm).groupby('filename')
+        hyp = meeteval.io.load(session.tcp_wer_hyp_stm).groupby('filename')
         assert len(ref) == 1, 'Multiple meetings in a ref file?'
         assert len(hyp) == 1, 'Multiple meetings in a hyp file?'
         assert list(ref.keys())[0] == list(hyp.keys())[0]
@@ -95,7 +95,7 @@ def calc_wer(out_dir: str, tcp_wer_hyp_stm: str, tcorc_wer_hyp_stm: str,session_
         meeting_name = list(ref.keys())[0]        
         av = AlignmentVisualization(ref[meeting_name], hyp[meeting_name], alignment='tcp')        
         # Create standalone HTML file
-        av.dump(os.path.join(os.path.split(session.hyp_file_name)[0], 'viz.html'))  
+        av.dump(os.path.join(os.path.split(session.tcp_wer_hyp_stm)[0], 'viz.html'))  
         
     
     def calc_session_tcp_wer(session: pd.Series):

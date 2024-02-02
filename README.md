@@ -14,7 +14,7 @@ The following steps will guide you through setting up the project on your machin
 ### Windows Users
 This project is compatible with **Linux** only, Windows users should use WSL2 to run it. <br>
 Follow the instructions in the [WSL2 Installation Guide](https://learn.microsoft.com/en-us/windows/wsl/install) to install WSL2 on your machine. <br>
-And install Ubuntu 20.04 from the [Microsoft Store](https://www.microsoft.com/en-us/p/ubuntu-2004-lts/9n6svws3rx71?activetab=pivot:overviewtab). <br>
+Next, install Ubuntu 20.04 from the [Microsoft Store](https://www.microsoft.com/en-us/p/ubuntu-2004-lts/9n6svws3rx71?activetab=pivot:overviewtab). <br>
 
 Alternatively, you can run and work on the project in a [devctonainer](https://containers.dev/) using, for example, the [Dev Containers VSCode Extension](https://code.visualstudio.com/docs/devcontainers/containers).
 
@@ -110,18 +110,18 @@ Azure CLI is required to download the datasets. To install it, run the following
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
-# Running the inference pipeline
-The following command will run the inference pipeline on the dev-set of the recorded meeting dataset.
+# Running evaluation - the inference pipeline
+The following command will download the entire dev-set of the recorded meeting dataset and run the inference pipeline.
 ```bash
 cd /path/to/NOTSOFAR-Repo
 python run_inference.py
 ```
 
-The first time you run it, it will automatically download the required models and datasets from blob storage:
+The first time you run it, it will automatically download these required models and datasets from blob storage:
 
 
-1. The development set of the meeting dataset (dev-set) is stored in the `artifacts/meeting_data` directory.
-2. The CSS models required to run the inference pipeline are stored in the `artifacts/css_models` directory. 
+1. The development set of the meeting dataset (dev-set) will be stored in the `artifacts/meeting_data` directory.
+2. The CSS models required to run the inference pipeline will be stored in the `artifacts/css_models` directory. 
 
 Outputs will be written to the `artifacts/outputs` directory.
 
@@ -129,16 +129,26 @@ Outputs will be written to the `artifacts/outputs` directory.
 `run_inference.py` by default points to the config yaml that loads the full meeting dataset: 
 
 ```
-conf_file = project_root / 'configs/inference/css_passthrough_ch0.yaml'
+conf_file = project_root / 'configs/inference/inference_v1.yaml'
 ```
 
 For debugging, to run on only one meeting and the Whisper 'tiny' model, you can use the following config:
 ```
-conf_file = project_root / 'configs/inference/css_passthrough_ch0_debug.yaml'
+conf_file = project_root / 'configs/inference/debug_inference.yaml'
 ```
 
 The `session_query` argument found in the yaml config file offers more control over filtering meetings.
 Note that to submit results on the dev-set, you must evaluate on the full set and no filtering must be performed.
+
+
+# Integrating your own models 
+The inference pipeline is modular, designed for easy research and extension.
+Begin by exploring the following components:
+- **Continuous Speech Separation (CSS)**: See `css_inference` in `css.py` . We provide a model pre-trained on NOTSOFAR's simulated training dataset, as well as inference and training code. For more information, refer to the [CSS section](#running-css-continuous-speech-separation-training).
+- **Automatic Speech Recognition (ASR)**: See `asr_inference` in `asr.py`. The baseline implementation relies on [Whisper](https://github.com/openai/whisper). 
+- **Speaker Diarization**: See `diarization_inference` in `diarization.py`. The baseline implementation relies on the [NeMo toolkit](https://github.com/NVIDIA/NeMo).
+
+
 
 # Running CSS (continuous speech separation) training
 
@@ -194,17 +204,17 @@ calculate the loss when training.
 
 
 # NOTSOFAR-1 Datasets - Download Instructions
+This section is for those specifically interested in downloading the NOTSOFAR datasets.<br>
 The NOTSOFAR-1 Challenge provides two datasets: a recorded meeting dataset and a simulated training dataset. <br>
-This section is for those who are specifically interested in downloading these datasets.<br>
 The datasets are stored in Azure Blob Storage, to download them, you will need to install `Azure CLI` (part of the environment setup instructions above).
+
+You can use either the python utilities in `utils/azure_storage.py` or the `az storage copy` command to download the datasets as described below.
 
 To install Azure CLI, run the following command:
 ```bash
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
-
-You can use either the python utilities in `utils/azure_storage.py` or the `az storage copy` command to download the datasets as described below.
 
 
 ### Meeting Dataset for Benchmarking and Training
@@ -213,7 +223,9 @@ The NOTSOFAR-1 Recorded Meeting Dataset is a collection of 315 meetings, each av
 
 ### Download
 
-To download the dataset, replace the arguments and run the following command:
+To download the dataset, you can call the python function `download_meeting_subset` within `utils/azure_storage.py`.
+
+Alternatively, using Azure CLI, set these arguments and run the following command:
 
 `--destination` - replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
 `--include-path` - replace with the dataset you want to download: <br>
@@ -238,7 +250,9 @@ The NOTSOFAR-1 Training Dataset is a 1000-hour simulated training dataset, synth
 
 ### Download
 
-To download the dataset, replace the arguments and run the fallowing command:
+
+To download the dataset, you can call the python function `download_simulated_subset` within `utils/azure_storage.py`.
+Alternatively, using Azure CLI, set these arguments and run the following command:
 
 `--destination` - replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
 `--include-path` - replace with the dataset you want to download: <br>

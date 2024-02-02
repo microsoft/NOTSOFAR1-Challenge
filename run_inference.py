@@ -34,7 +34,7 @@ if __name__ == "__main__":
     elif config_name == 'dev_set_1_mc':
         # for quick debug: pass-through CSS, tiny Whisper, one MC (multi-channel) session
         conf_file = project_root / 'configs/inference/inference_v1.yaml'
-        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30891"'
+        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30860"'
     else:
         raise ValueError(f'unknown config name: {config_name}')
 

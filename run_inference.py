@@ -1,39 +1,29 @@
-import logging
+from pprint import pprint
 from pathlib import Path
 from typing import Literal
-
-import pandas as pd
 
 from inference_pipeline.inference import InferenceCfg, inference_pipeline, FetchFromCacheCfg
 from utils.azure_storage import download_meeting_subset, download_models
 from utils.conf import get_conf
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] [%(name)s]  %(message)s')
-
-    # verbose pandas display for debugging
-    pd.set_option('display.precision', 4)
-    pd.options.display.width = 600
-    pd.options.display.max_columns = 20
-    pd.options.display.max_rows = 200
-    # _LOG.info('display options:\n%s', pprint.pformat(pd.options.display.__dict__, indent=4))
     project_root = Path(__file__).parent
 
-    config_name: Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_1_mc'] = 'dev_set_1_mc'
+    config_name: Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_1_mc_debug'] = 'dev_set_1_mc_debug'
 
     if config_name == 'full_dev_set_mc':
-        # pass-through CSS, large-v2 Whisper, all multi-channel (MC) dev-set sessions
+        # all multi-channel (MC) dev-set sessions
         conf_file = project_root / 'configs/inference/inference_v1.yaml'
         session_query = "is_mc == True"  # filter only MC
 
     elif config_name == 'full_dev_set_sc':
-        # pass-through CSS, large-v2 Whisper, all single-channel (SC) dev-set sessions
+        # all single-channel (SC) dev-set sessions
         conf_file = project_root / 'configs/inference/inference_v1.yaml'
         session_query = "is_mc == False"  # filter only SC
 
-    elif config_name == 'dev_set_1_mc':
-        # for quick debug: pass-through CSS, tiny Whisper, one MC (multi-channel) session
-        conf_file = project_root / 'configs/inference/inference_v1.yaml'
+    elif config_name == 'dev_set_1_mc_debug':
+        # for quick debug: 'tiny' Whisper, one MC (multi-channel) session
+        conf_file = project_root / 'configs/inference/debug_inference.yaml'
         session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30860"'
     else:
         raise ValueError(f'unknown config name: {config_name}')
@@ -60,6 +50,9 @@ if __name__ == "__main__":
     outputs_dir = project_root / 'artifacts' / 'outputs'
 
     cache_cfg = FetchFromCacheCfg()  # no cache, use this at your own risk.
+
+    pprint(f'{config_name=}')
+    pprint(cfg)
 
     # run inference pipeline
     inference_pipeline(meetings_dir=str(dev_meetings_dir),

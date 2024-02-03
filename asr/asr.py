@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -7,9 +6,10 @@ import pandas as pd
 import whisper
 from tqdm import tqdm
 
+from utils.logging_def import get_logger
 from utils.text_norm_whisper_like import get_txt_norm
 
-_LOG = logging.getLogger('asr')
+_LOG = get_logger('asr')
 
 
 @dataclass

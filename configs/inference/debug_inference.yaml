@@ -35,8 +35,7 @@ diarization:
 #session_query: 'is_mc == True and ~MtgType.str.startswith("read")'
 
 # one MC session:
-session_query: 'is_mc == True and meeting_id == "MTG_30830" and device_name == "rockfall_0"'
+#session_query: 'is_mc == True and meeting_id == "MTG_30830" and device_name == "rockfall_0"'
 
-
-# Note: "read" meetings are essentially debug meetings thta have a person reading a predefined text.
-#   Useful for debugging but not so much for hyper param tuning. That's why we remove them at this point.
+# all sessions:
+session_query: null  # NOTE: this may be overridden elsewhere

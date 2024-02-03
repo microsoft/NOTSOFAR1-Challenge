@@ -16,11 +16,14 @@ from css.training.conformer_wrapper import ConformerCssWrapper
 from css.training.train import TrainCfg, get_model
 from css.training.losses import mse_loss, l1_loss, PitWrapper
 from utils.audio_utils import write_wav
+from utils.logging_def import get_logger
 from utils.mic_array_model import multichannel_mic_pos_xyz_cm
 from utils.conf import get_conf
 from utils.numpy_utils import dilate, erode
 from utils.plot_utils import plot_stitched_masks, plot_left_right_stitch
 from utils.audio_utils import play_wav
+
+_LOG = get_logger('css')
 
 
 # CSS inference configuration
@@ -63,7 +66,7 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
             sep_wav_file_names: a list of separated file paths (typically 2-3 files)
 
     """
-    print("Running CSS (Continuous Speech Separation)")
+    _LOG.info("Running CSS (Continuous Speech Separation)")
 
     session_css = session.copy()
 
@@ -109,7 +112,7 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
     sep_wav_file_names = []
     for i, w in enumerate(separated_wavs):
         filename = css_out_dir / f"sep_stream{i}.wav"
-        print(f"CSS: saving separated wav {filename}")
+        _LOG.info(f"CSS: saving separated wav to {filename}")
         write_wav(filename, samps=w, sr=sr)
         sep_wav_file_names.append(str(filename))
 

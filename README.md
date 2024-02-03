@@ -111,7 +111,8 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
 # Running evaluation - the inference pipeline
-The following command will download the entire dev-set of the recorded meeting dataset and run the inference pipeline.
+The following command will download the entire dev-set of the recorded meeting dataset and run the inference pipeline
+according to selected configuration. The default is configured to `debug_inference.yaml` for quick debugging, running on a single session.
 ```bash
 cd /path/to/NOTSOFAR-Repo
 python run_inference.py
@@ -268,3 +269,11 @@ Example:
 ```bash
 az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path v1.4/1000hrs/train
 ```
+
+
+## Data License
+This public data is currently licensed for use exclusively in the NOTSOFAR challenge event. 
+We appreciate your understanding that it is not yet available for academic or commercial use. 
+However, we are actively working towards expanding its availability for these purposes. 
+We anticipate a forthcoming announcement that will enable broader and more impactful use of this data. Stay tuned for updates. 
+Thank you for your interest and patience.

@@ -1,13 +1,13 @@
 import os
-import logging
 import pandas as pd
 from pathlib import Path
 
 from diarization.diarization_common import DiarizationCfg
 from diarization.time_based_diarization import time_based_diarization
 from diarization.word_based_diarization import word_based_clustering
+from utils.logging_def import get_logger
 
-_LOG = logging.getLogger('diarization')
+_LOG = get_logger('diarization')
 
 
 def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: DiarizationCfg,

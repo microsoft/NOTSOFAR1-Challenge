@@ -1,22 +1,19 @@
-import logging
-import pprint
 from dataclasses import field, dataclass
 from typing import Optional
-import pandas as pd
 import os
-from pathlib import Path
+
+import tqdm
+import pandas as pd
+
 from asr.asr import asr_inference, WhisperAsrCfg
 from css.css import css_inference, CssCfg
 from diarization.diarization import diarization_inference
 from diarization.diarization_common import DiarizationCfg
 from inference_pipeline.load_meeting_data import load_data
-from utils.conf import get_conf
-from utils.azure_storage import download_meeting_subset, download_models
+from utils.logging_def import get_logger
 from utils.scoring import ScoringCfg, calc_wer, write_transcript_to_stm
-import tqdm
 
-
-_LOG = logging.getLogger('inference')
+_LOG = get_logger('inference')
 
 
 @dataclass
@@ -38,7 +35,7 @@ class FetchFromCacheCfg:
 def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: InferenceCfg,
                        cache: FetchFromCacheCfg):
     """
-    Run the inference pipeline on all sessions in the meetings_dir.
+    Run the inference pipeline on sessions loaded from meetings_dir.
     
     Args:
         meetings_dir: directory with meeting data. 
@@ -58,6 +55,7 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
     # Process each session independently. (Cross-session information is not permitted)
     wer_series_list = []
     for session_name, session in tqdm.tqdm(all_session_df.iterrows(), desc='processing sessions'):
+        _LOG.info(f'Processing session: {session.session_id}')
 
         # Front-end: split session into enhanced streams without overlap speech
         session: pd.Series = css_inference(out_dir, models_dir, session, cfg.css, cache.css)
@@ -89,7 +87,7 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
                                               collar=5,
                                               save_visualizations=cfg.scoring.save_visualizations)
             wer_series_list.append(session_wer)
-            _LOG.info(f"tcp_wer = {session_wer.tcp_wer:.4f} for session {session_wer.session_id}")
+
 
     if wer_series_list:
         # if GT is available, aggregate WER.
@@ -104,7 +102,7 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
                            cfg.diarization.method])
         os.makedirs(os.path.join(out_dir, "results"), exist_ok=True)
         result_file = os.path.join(out_dir, "results", exp_id+".tsv")
-        _LOG.info(f"Results can be found on: {result_file}")
+        _LOG.info(f"Results can be found in: {result_file}")
         all_session_wer_df.to_csv(result_file, sep="\t")
         # TODO confidence intervals, WER per meta-data
 
@@ -124,6 +122,7 @@ def write_hyp_transcripts(out_dir, session_id,
     df['stream_id'] = df['speaker_id']
     tcp_wer_hyp_stm = write_transcript_to_stm(out_dir, df, text_normalizer,
                                               session_id, 'tcp_wer_hyp.stm')
+    _LOG.info(f'tcpwer STM: {tcp_wer_hyp_stm}')
 
     # hyp file for tcORC-WER, a supplementary metric for analysis.
     # MeetEval requires stream _id, which for tcORC-WER depends on the system.
@@ -142,4 +141,5 @@ def write_hyp_transcripts(out_dir, session_id,
     _LOG.debug(f'Found {len(uniques)} streams for tc_orc_wer_hyp.stm')
     tcorc_wer_hyp_stm= write_transcript_to_stm(out_dir, df, text_normalizer,
                                                session_id, 'tc_orc_wer_hyp.stm')
+    _LOG.info(f'tcorc_wer STM: {tcorc_wer_hyp_stm}')
     return tcp_wer_hyp_stm, tcorc_wer_hyp_stm

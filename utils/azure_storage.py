@@ -12,9 +12,11 @@ import time
 from pathlib import Path
 from typing import Union, Optional, Literal
 
+from utils.logging_def import get_logger
+
 NOTSOFAR_STORAGE_ACCOUNT_URL = 'https://notsofarsa.blob.core.windows.net'
 
-_LOG = logging.getLogger('azure_storage')
+_LOG = get_logger('azure_storage')
 
 
 def download_blob_container_dir(azure_source_dir: str, destination_dir: str, container_name: str,
@@ -153,8 +155,6 @@ def main():
     """
     Usage example
     """
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] [%(name)s]  %(message)s')
-
     with tempfile.TemporaryDirectory() as temp_dir:
         _LOG.info(f'created temp dir: {temp_dir}')
 

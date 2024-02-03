@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List, Dict
 from dataclasses import dataclass
 
 import pandas as pd
@@ -8,7 +7,11 @@ import os
 import sys
 
 import meeteval
-from meeteval.viz.visualize import AlignmentVisualization 
+from meeteval.viz.visualize import AlignmentVisualization
+
+from utils.logging_def import get_logger
+
+_LOG = get_logger('wer')
 
 
 @dataclass
@@ -134,5 +137,8 @@ def calc_wer(out_dir: str, tcp_wer_hyp_stm: str, tcorc_wer_hyp_stm: str,session_
         save_wer_visualization(stm_res)
 
     session_res = pd.concat([stm_res, tcp_wer_res, tcorc_wer_res], axis=0)
+
+    _LOG.info(f"tcp_wer = {session_res.tcp_wer:.4f}, tcorc_wer = {session_res.tcorc_wer:.4f} "
+              f"for session {session_res.session_id}")
 
     return session_res

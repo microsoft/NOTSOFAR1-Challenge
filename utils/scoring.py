@@ -42,7 +42,9 @@ def write_transcript_to_stm(out_dir, attributed_segments_df: pd.DataFrame, tn, s
     filepath = Path(out_dir) / 'wer' / session_id / filename
     filepath.parent.mkdir(parents=True, exist_ok=True)
     channel = 1  # ignored by MeetEval
-    with filepath.open('w') as f:
+
+    with filepath.open('w', encoding='utf-8') as f:
+        # utf-8 encoding to handle non-ascii characters that may be output by some ASRs
         for entry in range(len(attributed_segments_df)):
             stream_id = attributed_segments_df.iloc[entry]['stream_id']
             start_time = attributed_segments_df.iloc[entry]['start_time']

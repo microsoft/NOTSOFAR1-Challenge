@@ -455,8 +455,8 @@ class EnglishSpellingNormalizer:
     [1] https://www.tysto.com/uk-us-spelling-list.html
     """
 
-    def __init__(self):
-        mapping_path = os.path.join(os.path.dirname(__file__), "english.json")
+    def __init__(self, mapping_name="english.json"):
+        mapping_path = os.path.join(os.path.dirname(__file__), mapping_name)
         self.mapping = json.load(open(mapping_path))
 
     def __call__(self, s: str):
@@ -471,6 +471,7 @@ class EnglishTextNormalizer:
                 "hmm"
             ),
             r"\b(a+h+)\b|\b(ha+)\b": "ah",
+            r"[!?.]+(?=$|\s)": "",  # Okay.. --> okay
             r"\b(o+h+)\b|\b(h+o+)\b": "oh",
             r"\b(u+h+)\b|\b(h+u+)\b|\b(h+u+h+)\b": "uh",
             # common contractions
@@ -534,6 +535,7 @@ class EnglishTextNormalizer:
         else:
             self.standardize_numbers = None
         self.standardize_spellings = EnglishSpellingNormalizer()
+        self.pre_standardize_spellings = EnglishSpellingNormalizer("pre_english.json")
 
     def __call__(self, s: str):
         s = s.lower()
@@ -542,6 +544,7 @@ class EnglishTextNormalizer:
         # remove words between brackets
         s = re.sub(r"\(([^)]+?)\)", "", s)
         # remove words between parenthesis
+        s = self.pre_standardize_spellings(s)
         s = re.sub(r"\s+'", "'", s)
         # when there's a space before an apostrophe
 
@@ -557,8 +560,8 @@ class EnglishTextNormalizer:
 
         if self.standardize_numbers is not None:
             s = self.standardize_numbers(s)
-        s = self.standardize_spellings(s)
 
+        s = self.standardize_spellings(s)
         # now remove prefix/suffix symbols
         # that are not preceded/followed by numbers
         s = re.sub(r"[.$¢€£]([^0-9])", r" \1", s)

@@ -55,7 +55,7 @@ To set it up, run the following commands:
 source "/path/to/conda/dir/etc/profile.d/conda.sh"
 conda create --name notsofar python=3.10 -y
 conda activate notsofar 
-cd /path/to/NOTSOFAR-Repo
+cd /path/to/NOTSOFAR1-Challenge
 python -m pip install --upgrade pip
 pip install --upgrade setuptools wheel Cython fasttext-wheel
 pip install -r requirements.txt
@@ -91,7 +91,7 @@ source /path/to/virtualenvs/NOTSOFAR/bin/activate
 Navigate to the cloned repository and install the required Python dependencies:
 
 ```bash
-cd /path/to/NOTSOFAR-Repo
+cd /path/to/NOTSOFAR1-Challenge
 python -m pip install --upgrade pip
 pip install --upgrade setuptools wheel Cython fasttext-wheel
 sudo apt-get install python3.10-dev ffmpeg build-essential
@@ -108,9 +108,10 @@ With the provided `devcontainer.json` you can run and work on the project in a [
 
 # Running evaluation - the inference pipeline
 The following command will download the **entire dev-set** of the recorded meeting dataset and run the inference pipeline
-according to selected configuration. The default is configured to `--config-name dev_set_1_mc_debug` for quick debugging, running on a single session.
+according to selected configuration. The default is configured to `--config-name dev_set_1_mc_debug` for quick debugging, 
+running on a single session with the Whisper 'tiny' model.
 ```bash
-cd /path/to/NOTSOFAR-Repo
+cd /path/to/NOTSOFAR1-Challenge
 python run_inference.py
 ```
 
@@ -127,20 +128,10 @@ The first time `run_inference.py` runs, it will automatically download these req
 
 Outputs will be written to the `artifacts/outputs` directory.
 
-### Running on a subset of the dev-set meeting data
-`run_inference.py` by default points to the config yaml that loads the full meeting dataset: 
 
-```
-conf_file = project_root / 'configs/inference/inference_v1.yaml'
-```
 
-For debugging, to run on only one meeting and the Whisper 'tiny' model, you can use the following config:
-```
-conf_file = project_root / 'configs/inference/debug_inference.yaml'
-```
-
-The `session_query` argument found in the yaml config file offers more control over filtering meetings.
-Note that to submit results on the dev-set, you must evaluate on the full set and no filtering must be performed.
+The `session_query` argument found in the yaml config file (e.g. `configs/inference/inference_v1.yaml`) offers more control over filtering meetings.
+Note that to submit results on the dev-set, you must evaluate on the full set (`full_dev_set_mc` or `full_dev_set_sc`) and no filtering must be performed.
 
 
 # Integrating your own models 
@@ -150,6 +141,10 @@ Begin by exploring the following components:
 - **Automatic Speech Recognition (ASR)**: See `asr_inference` in `asr.py`. The baseline implementation relies on [Whisper](https://github.com/openai/whisper). 
 - **Speaker Diarization**: See `diarization_inference` in `diarization.py`. The baseline implementation relies on the [NeMo toolkit](https://github.com/NVIDIA/NeMo).
 
+### Training datasets
+For training and fine-tuning your models, NOTSOFAR offers the **simulated training set** and the training portion of the
+**recorded meeting dataset**. Refer to the `download_simulated_subset` and `download_meeting_subset` functions in `utils/azure_storage.py`, 
+or the [NOTSOFAR-1 Datasets](#notsofar-1-datasets---download-instructions) section.
 
 
 # Running CSS (continuous speech separation) training
@@ -157,7 +152,7 @@ Begin by exploring the following components:
 ## 1. Local training on a data sample for development and debugging
 The following command will run CSS training on the 10-second simulated training data sample in `sample_data/css_train_set`.
 ```bash
-cd /path/to/NOTSOFAR-Repo
+cd /path/to/NOTSOFAR1-Challenge
 python run_training_css_local.py
 ```
 

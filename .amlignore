@@ -168,9 +168,6 @@ __pycache__
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# intermediate modules outputs
-/outputs
-
 # Mlflow outputs
 mlruns/
 
@@ -181,3 +178,6 @@ mlruns/
 /sample_data
 /.git
 /css/css_with_conformer/utils/*.scp
+# artifacts includes various by products such as: intermediate module outputs, downloaded data, models.
+/artifacts
+/outputs

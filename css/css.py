@@ -18,7 +18,7 @@ from css.training.losses import mse_loss, l1_loss, PitWrapper
 from utils.audio_utils import write_wav
 from utils.logging_def import get_logger
 from utils.mic_array_model import multichannel_mic_pos_xyz_cm
-from utils.conf import get_conf
+from utils.conf import load_yaml_to_dataclass
 from utils.numpy_utils import dilate, erode
 from utils.plot_utils import plot_stitched_masks, plot_left_right_stitch
 from utils.audio_utils import play_wav
@@ -129,13 +129,15 @@ def load_separator_model(cfg: CssCfg, is_mc: bool, models_dir: str) -> nn.Module
 
     def fetch_one_file(path: Path, suffix: str):
         files = list(path.glob(suffix))
-        assert len(files) == 1, f'expecting exactly one {suffix} file'
+        if len(files) == 0:
+            raise FileNotFoundError(f'expecting at least one {suffix} file in {path}')
+        assert len(files) == 1, f'expecting exactly one {suffix} file in {path}'
         return str(files[0])
 
     yaml_path = fetch_one_file(model_path, '*.yaml')
     checkpoint_path = fetch_one_file(model_path, '*.pt')
 
-    train_cfg = get_conf(yaml_path, TrainCfg)
+    train_cfg = load_yaml_to_dataclass(yaml_path, TrainCfg)
     separator = get_model(train_cfg)
 
     checkpoint = torch.load(checkpoint_path, map_location="cpu")

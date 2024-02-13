@@ -12,12 +12,9 @@ For more details see:
 The following steps will guide you through setting up the project on your machine. <br>
 
 ### Windows Users
-This project is compatible with **Linux** only, Windows users should use WSL2 to run it. <br>
-Follow the instructions in the [WSL2 Installation Guide](https://learn.microsoft.com/en-us/windows/wsl/install) to install WSL2 on your machine. <br>
-Next, install Ubuntu 20.04 from the [Microsoft Store](https://www.microsoft.com/en-us/p/ubuntu-2004-lts/9n6svws3rx71?activetab=pivot:overviewtab). <br>
-
-Alternatively, you can run and work on the project in a [devctonainer](https://containers.dev/) using, for example, the [Dev Containers VSCode Extension](https://code.visualstudio.com/docs/devcontainers/containers).
-
+This project is compatible with **Linux** environments. Windows users can refer to [Docker](#docker) or 
+[Devcontainer](#devcontainer) sections. <br>
+Alternatively, install WSL2 by following the [WSL2 Installation Guide](https://learn.microsoft.com/en-us/windows/wsl/install), then install Ubuntu 20.04 from the [Microsoft Store](https://www.microsoft.com/en-us/p/ubuntu-2004-lts/9n6svws3rx71?activetab=pivot:overviewtab). <br>
 
 ## Cloning the Repository
 
@@ -61,8 +58,8 @@ conda activate notsofar
 cd /path/to/NOTSOFAR-Repo
 python -m pip install --upgrade pip
 pip install --upgrade setuptools wheel Cython fasttext-wheel
-pip install azure-cli 
 pip install -r requirements.txt
+conda install ffmpeg -c conda-forge -y
 ```
 
 ### PIP
@@ -99,26 +96,30 @@ python -m pip install --upgrade pip
 pip install --upgrade setuptools wheel Cython fasttext-wheel
 sudo apt-get install python3.10-dev ffmpeg build-essential
 pip install -r requirements.txt
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
-#### Step 4: Install Azure CLI
+### Docker
 
-Azure CLI is required to download the datasets. To install it, run the following commands:
+Refer to the `Dockerfile` in the project's root for dependencies setup. To use Docker, ensure you have Docker installed on your system and configured to use Linux containers.
 
-```bash
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-```
+### Devcontainer
+With the provided `devcontainer.json` you can run and work on the project in a [devctonainer](https://containers.dev/) using, for example, the [Dev Containers VSCode Extension](https://code.visualstudio.com/docs/devcontainers/containers).
+
 
 # Running evaluation - the inference pipeline
-The following command will download the entire dev-set of the recorded meeting dataset and run the inference pipeline
-according to selected configuration. The default is configured to `debug_inference.yaml` for quick debugging, running on a single session.
+The following command will download the **entire dev-set** of the recorded meeting dataset and run the inference pipeline
+according to selected configuration. The default is configured to `--config-name dev_set_1_mc_debug` for quick debugging, running on a single session.
 ```bash
 cd /path/to/NOTSOFAR-Repo
 python run_inference.py
 ```
 
-The first time you run it, it will automatically download these required models and datasets from blob storage:
+To run on all multi-channel or single-channel dev-set sessions, use the following commands respectively:
+```bash
+python run_inference.py --config-name full_dev_set_mc
+python run_inference.py --config-name full_dev_set_sc
+```
+The first time `run_inference.py` runs, it will automatically download these required models and datasets from blob storage:
 
 
 1. The development set of the meeting dataset (dev-set) will be stored in the `artifacts/meeting_data` directory.
@@ -168,7 +169,7 @@ You have the option to download either the complete dataset, comprising almost 1
 
 For example, to download the entire 1000-hour dataset, make the following calls to download both the training and validation subsets:
 ```python
-ver='v1.4'  # this should point to the lateset and greatest version of the dataset.
+ver='v1.5'  # this should point to the lateset and greatest version of the dataset.
 
 # Option 1: Download the training and validation sets of the entire 1000-hour dataset. 
 train_set_path = download_simulated_subset(
@@ -207,14 +208,9 @@ calculate the loss when training.
 # NOTSOFAR-1 Datasets - Download Instructions
 This section is for those specifically interested in downloading the NOTSOFAR datasets.<br>
 The NOTSOFAR-1 Challenge provides two datasets: a recorded meeting dataset and a simulated training dataset. <br>
-The datasets are stored in Azure Blob Storage, to download them, you will need to install `Azure CLI` (part of the environment setup instructions above).
+The datasets are stored in Azure Blob Storage, to download them, you will need to setup [AzCopy](https://aka.ms/downloadazcopy-v10-linux-arm64)
 
-You can use either the python utilities in `utils/azure_storage.py` or the `az storage copy` command to download the datasets as described below.
-
-To install Azure CLI, run the following command:
-```bash
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-```
+You can use either the python utilities in `utils/azure_storage.py` or the `AzCopy` command to download the datasets as described below.
 
 
 
@@ -226,22 +222,22 @@ The NOTSOFAR-1 Recorded Meeting Dataset is a collection of 315 meetings, each av
 
 To download the dataset, you can call the python function `download_meeting_subset` within `utils/azure_storage.py`.
 
-Alternatively, using Azure CLI, set these arguments and run the following command:
+Alternatively, using AzCopy CLI, set these arguments and run the following command:
 
-`--destination` - replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
-`--include-path` - replace with the dataset you want to download: <br>
 - `subset_name`: name of split to download (`dev_set` / `eval_set` / `train_set`).
-- `version`: version to download (`240103g` / etc.). it's best to use the latest.
+- `version`: version to download (`240103g` / etc.). Use the latest version. 
+- `datasets_path` - path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
+
 Currently only **dev_set** (no GT) and **train_set** are available. See timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index) for when the other sets will be released.
 See doc in `download_meeting_subset` function in `utils/azure_storage.py` for latest available versions.
 
 ```bash
-az storage copy --recursive --only-show-errors --destination <path to NOTSOFAR datasets>/benchmark --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --include-path <subset_name>/<version>/MTG
+azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/<subset_name>/<version>/MTG <datasets_path>/benchmark --recursive
 ```
 
 Example:
 ```bash
-az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/benchmark-datasets --include-path dev_set/240103g/MTG
+azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240208.2_dev/MTG . --recursive
 ````
 
 
@@ -253,21 +249,22 @@ The NOTSOFAR-1 Training Dataset is a 1000-hour simulated training dataset, synth
 
 
 To download the dataset, you can call the python function `download_simulated_subset` within `utils/azure_storage.py`.
-Alternatively, using Azure CLI, set these arguments and run the following command:
+Alternatively, using AzCopy CLI, set these arguments and run the following command:
 
-`--destination` - replace with a path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
-`--include-path` - replace with the dataset you want to download: <br>
-- `version`: version of the train data to download (`v1` / `v1.1` / `v1.2` / `v1.3` / `1.4` / etc.)
-- `volume` - volume of the train data to download (`200hrs` / `1000hrs` / etc.)
+- `version`: version of the train data to download (`v1.1` / `v1.2` / `v1.3` / `1.4` / `1.5` / etc.).
+See doc in `download_simulated_subset` function in `utils/azure_storage.py` for latest available versions.
+- `volume` - volume of the train data to download (`200hrs` / `1000hrs`)
 - `subset_name`: train data type to download (`train` / `val`)
+- `datasets_path` - path to the directory where you want to download the simulated dataset (destination directory must exist). <br>
+
 
 ```bash
-az storage copy --recursive --only-show-errors --destination <path to NOTSOFAR datasets>/simulated --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path <version>/<volume>/<subset name>
+azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/<version>/<volume>/<subset_name> <datasets_path>/benchmark --recursive 
 ```
 
 Example:
 ```bash
-az storage copy --recursive --only-show-errors --destination . --source https://notsofarsa.blob.core.windows.net/css-datasets --include-path v1.4/1000hrs/train
+azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/1000hrs/train . --recursive
 ```
 
 

@@ -11,13 +11,16 @@ from nemo.collections.asr.parts.utils.offline_clustering import NMESC, SpectralC
 from utils.audio_utils import read_wav
 from diarization.diarization import DiarizationCfg
 from diarization.diarization_common import prepare_diarized_data_frame, DiarizationCfg
+from utils.logging_def import get_logger
+
+_LOG = get_logger('word_based_diarization')
 
 
 def load_speaker_model(model_name: str, device: str):
     """
     Load speaker embedding model defined in the NeMo toolkit.
     """
-    print("Loading pretrained {} model from NGC".format(model_name))
+    _LOG.info("Loading pretrained {} model from NGC".format(model_name))
     spk_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_name, map_location=device)
     spk_model.eval()
     
@@ -45,7 +48,7 @@ def run_clustering(raw_affinity_mat: np.array, max_num_speakers: int=8, max_rp_t
     return cluster_label
     
 
-def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_embedding_windows):
+def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_embedding_windows, max_allowed_word_duration=3):
     """
     For each word, use its word boundary information to extract multi-scale speaker embedding vectors.
     """
@@ -62,6 +65,13 @@ def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_em
             end_time = word[2]
             center_time = (start_time + end_time) / 2
             word_duration = end_time - start_time
+            
+            if word_duration > max_allowed_word_duration:
+                # Very long word duration is very suspicious and may harm diarization. Ignore them for now. 
+                # Note that these words will disappear in the final result. 
+                # To do: find a better way to deal with these words. 
+                _LOG.info(f"word '{word[0]}' has unreasonablly long duration ({start_time}s, {end_time}s). Skip it in diarization")
+                continue
             
             # extract multi-scale speaker embedding for the word
             word_embedding = []
@@ -86,7 +96,7 @@ def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_em
                     _, tmp_embedding = spk_model.forward(input_signal=word_wav, input_signal_length=word_lens)
                 word_embedding.append(tmp_embedding.cpu().detach())
             
-            all_words.append(word)
+            all_words.append(word+[channel_id])
             all_word_embeddings.append(torch.vstack(word_embedding))
             
     return all_words, all_word_embeddings
@@ -120,7 +130,9 @@ def word_based_clustering(audio_files: list, segments_df: pd.DataFrame, cfg: Dia
     spk_model = load_speaker_model(cfg.embedding_model_name, device=None)
     
     # extract word-based multi-scale speaker embedding vectors
-    all_words, all_word_embeddings = extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, cfg.min_embedding_windows)
+    all_words, all_word_embeddings = extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, 
+                                                                         cfg.min_embedding_windows, 
+                                                                         cfg.max_allowed_word_duration)
 
     # compute affinity matrix for clustering
     all_word_embeddings2 = torch.stack(all_word_embeddings)
@@ -136,6 +148,6 @@ def word_based_clustering(audio_files: list, segments_df: pd.DataFrame, cfg: Dia
     
     # prepare segment data frame
     all_words = [word+[f"spk{spk_idx}"] for word, spk_idx in zip(all_words, cluster_label)]
-    diarized_segments_df = prepare_diarized_data_frame(all_words, segments_df)
+    diarized_segments_df = prepare_diarized_data_frame(all_words, segments_df, cfg.apply_deduplication)
     
     return diarized_segments_df

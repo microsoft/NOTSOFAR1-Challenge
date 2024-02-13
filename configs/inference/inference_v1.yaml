@@ -2,7 +2,7 @@
 # * Key names and value types will be verified.
 
 asr:
-  model_name: 'large-v2'
+  model_name: 'large-v3'
 
 css:
   segment_size_sec: 3.
@@ -10,6 +10,7 @@ css:
   device: "cuda:0"
   show_progressbar: True
   slice_audio_for_debug: False
+  pass_through_ch0: False
 
 diarization:
   method: 'word_nmesc'     # choose from "word_nmesc", "nmesc" and "nmesc_msdd"
@@ -18,6 +19,7 @@ diarization:
   msdd_model_name: "diar_msdd_telephonic"
   # vad_model_name: "vad_telephony_marblenet"    # for 8kHz telephone
   vad_model_name: "vad_multilingual_marblenet"   # for 16kHz
+  apply_deduplication: true
 
 scoring:
   save_visualizations: False

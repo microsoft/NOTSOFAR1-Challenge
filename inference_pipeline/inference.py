@@ -51,7 +51,7 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
     # Load all meetings from the meetings dir
     _LOG.info(f'loading meetings from: {meetings_dir}')
     all_session_df, all_gt_utt_df, all_gt_metadata_df = load_data(meetings_dir, cfg.session_query)
-
+    
     # Process each session independently. (Cross-session information is not permitted)
     wer_series_list = []
     for session_name, session in tqdm.tqdm(all_session_df.iterrows(), desc='processing sessions'):
@@ -64,15 +64,13 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
         segments_df: pd.DataFrame = asr_inference(out_dir, session, cfg.asr, cache.asr)
 
         # Return speaker attributed segments (re-segmentation can occur)
-        attributed_segments_df: pd.DataFrame = diarization_inference(out_dir,
-                                                                     segments_df,
-                                                                     cfg.diarization,
-                                                                     cache.diarization)
+        attributed_segments_df: pd.DataFrame = (
+            diarization_inference(out_dir, segments_df, cfg.diarization, cache.diarization))
 
         # Write hypothesis transcription to: outdir / wer / {multi|single}channel /.../ *.stm
         # To submit your system for evaluation, send us the contents of: outdir / wer / {multi|single}channel
         tcp_wer_hyp_stm, tcorc_wer_hyp_stm = (
-            write_hyp_transcripts(out_dir, session.session_id, attributed_segments_df, segments_df,
+            write_hyp_transcripts(out_dir, session.session_id, attributed_segments_df, attributed_segments_df,
                                   cfg.asr.text_normalizer()))
 
         # Calculate WER if GT is available
@@ -87,7 +85,6 @@ def inference_pipeline(meetings_dir: str, models_dir: str, out_dir: str, cfg: In
                                               collar=5,
                                               save_visualizations=cfg.scoring.save_visualizations)
             wer_series_list.append(session_wer)
-
 
     if wer_series_list:
         # if GT is available, aggregate WER.
@@ -135,9 +132,13 @@ def write_hyp_transcripts(out_dir, session_id,
     # Take wav_file_name from segments_df, rather than attributed_segments_df, since the latter is a result of
     # diarizations, where the segments are built of words potentially coming from different channels.
     # So, in the general case there is no meaningful "channel" that can be associated with a segment.
-    df = segments_df.copy()
+    
+    # Use segment_df for tcorc_wer
+    # df = segments_df.copy()
+    df = attributed_segments_df.copy()
     # Use factorize to map each unique wav_file_name to an index.
     df['stream_id'], uniques = pd.factorize(df['wav_file_name'], sort=True)
+
     _LOG.debug(f'Found {len(uniques)} streams for tc_orc_wer_hyp.stm')
     tcorc_wer_hyp_stm= write_transcript_to_stm(out_dir, df, text_normalizer,
                                                session_id, 'tc_orc_wer_hyp.stm')

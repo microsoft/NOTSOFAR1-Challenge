@@ -132,7 +132,6 @@ def calc_wer(out_dir: str, tcp_wer_hyp_stm: str, tcorc_wer_hyp_stm: str,session_
             return pd.Series({('tcorc_'+key): data[key] for key in keys}
                              ).rename({'tcorc_error_rate': 'tcorc_wer'})
 
-
     tcp_wer_res = calc_session_tcp_wer(stm_res)
     tcorc_wer_res = calc_session_tcorc_wer(stm_res)
     if save_visualizations:

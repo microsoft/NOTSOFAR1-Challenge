@@ -12,6 +12,9 @@ from nemo.collections.asr.models.msdd_models import NeuralDiarizer
 
 from utils.audio_utils import read_wav, write_wav
 from diarization.diarization_common import prepare_diarized_data_frame, DiarizationCfg
+from utils.logging_def import get_logger
+
+_LOG = get_logger('time_based_diarization')
 
 
 def run_nemo_diarization(audio_files: list, session_output_dir: str, cfg: DiarizationCfg, vad_time_resolution: float=0.01):
@@ -114,7 +117,7 @@ def run_nemo_diarization(audio_files: list, session_output_dir: str, cfg: Diariz
     return channel_spk_vad
 
     
-def assign_words_to_speakers(segments_df: pd.DataFrame, spk_vad: np.array, vad_time_resolution: float=0.01) -> pd.DataFrame:
+def assign_words_to_speakers(segments_df: pd.DataFrame, spk_vad: np.array, apply_deduplication: bool, vad_time_resolution: float=0.01) -> pd.DataFrame:
     """
     Given the diarization output and ASR word boundary information, assign an ASR word to the diarized speaker that is the 
     most active during the word's time interval. 
@@ -133,11 +136,11 @@ def assign_words_to_speakers(segments_df: pd.DataFrame, spk_vad: np.array, vad_t
             word_spk_count = spk_vad[channel_id][:, start_frame: end_frame]
             avg_word_spk_count = np.mean(word_spk_count, axis=1)
             if np.sum(avg_word_spk_count) == 0:  # no valid speaker count from diarization
-                all_words.append(word+[None])
+                all_words.append(word+[channel_id, None])
                 has_unassigned_word = True
             else:
                 most_prob_spk_idx = np.argmax(avg_word_spk_count)
-                all_words.append(word+[f"spk{most_prob_spk_idx}"])
+                all_words.append(word+[channel_id, f"spk{most_prob_spk_idx}"])
 
     if has_unassigned_word:
         word_middle_times = [np.mean(word[1:3]) for word in all_words if word[-1] is not None]
@@ -150,9 +153,9 @@ def assign_words_to_speakers(segments_df: pd.DataFrame, spk_vad: np.array, vad_t
                 time_diff = np.abs(word_middle_times - word_middle_time)
                 closest_word_idx = np.argmin(time_diff)
                 word[-1] = word_spk_ids[closest_word_idx]
-                print(f"Word ({word[0]}, {word[1]:.2f}, {word[2]:.2f}) borrowed speaker ID ({word[-1]}) from word centered at {word_middle_times[closest_word_idx]:.2f}s. Time diff = {time_diff[closest_word_idx]:.2f}")
+                _LOG.info(f"Word ({word[0]}, {word[1]:.2f}, {word[2]:.2f}) borrowed speaker ID ({word[-1]}) from word centered at {word_middle_times[closest_word_idx]:.2f}s. Time diff = {time_diff[closest_word_idx]:.2f}")
     
-    diarized_segments_df = prepare_diarized_data_frame(all_words, segments_df)
+    diarized_segments_df = prepare_diarized_data_frame(all_words, segments_df, apply_deduplication)
     
     return diarized_segments_df
 
@@ -166,6 +169,6 @@ def time_based_diarization(wav_files_sorted, segments_df, output_dir, cfg):
     channel_spk_vad = run_nemo_diarization(wav_files_sorted, output_dir, cfg)
 
     # Step 2. Assign ASR words to diarized speakers
-    attributed_segments_df = assign_words_to_speakers(segments_df, channel_spk_vad)
+    attributed_segments_df = assign_words_to_speakers(segments_df, channel_spk_vad, cfg.apply_deduplication)
     
     return attributed_segments_df

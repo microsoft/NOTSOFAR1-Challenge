@@ -30,6 +30,11 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
         of the affinity matrixces of all the scales.
         To use this mode, set cfg.method to "word_nmesc".
 
+    A known limitation of the diarization baseline is that the words from the CSS streams
+    are pooled and clustered, and stream ID is not used in clustering. It is possible that
+    words from different streams that overlap in time are assigned to the same speaker.
+    This will trigger warning in tcp_wer and tcorc_wer computation and potentially degrade results.
+
     Args:
         out_dir: the directory to store generated files in the diarization step.
             This allows the cache of files and skip some steps when the code is run again.
@@ -52,8 +57,13 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
     assert segments_df.session_id.nunique() <= 1, 'no cross-session information is permitted'
     assert segments_df.wav_file_name.nunique() <= 3, 'expecting at most three separated channels'
 
+    if cfg.method == "skip":
+        _LOG.info("Skipping Diarization")
+        attributed_segments_df = segments_df.copy()
+        attributed_segments_df['speaker_id'] = 'spk0'
+        return attributed_segments_df
+
     session_name = segments_df.session_id[0]
-    
     output_dir = Path(out_dir) / "diarization" / session_name / cfg.method
     out_file = output_dir / "all_segments_df.pkl"
 
@@ -63,12 +73,12 @@ def diarization_inference(out_dir: str, segments_df: pd.DataFrame, cfg: Diarizat
 
     wav_files_sorted = sorted(segments_df.wav_file_name.unique())
     os.makedirs(output_dir, exist_ok=True)
-
+    
     if cfg.method == "word_nmesc":
         attributed_segments_df = word_based_clustering(wav_files_sorted, segments_df, cfg)
     else:
         attributed_segments_df = time_based_diarization(wav_files_sorted, segments_df, str(output_dir), cfg)
-
+    
     attributed_segments_df.to_pickle(out_file)
     _LOG.info(f'Speaker Diarization saved to {out_file}')
 

@@ -1,3 +1,4 @@
+# Note there's newer and better data. Do not download v1.2
 train_dir: ./v1.2/100hrs/train
 val_dir: ./v1.2/100hrs/val
 out_dir: ./
@@ -8,6 +9,8 @@ train_set_cfg:
 val_set_cfg:
   sample_frac: 1.0
   max_urls: null  # null means no limit
+
+# This model was actually trained with clip_gt_to_mixture: False, but we recommend to set it to True.
 
 log_params_mlflow: True
 log_metrics_mlflow: True

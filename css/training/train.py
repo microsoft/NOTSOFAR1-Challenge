@@ -1,5 +1,6 @@
 import argparse
 import dataclasses
+import shutil
 from itertools import takewhile, count
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
@@ -63,9 +64,9 @@ class TrainCfg:
     learning_rate: float = 1e-3
     global_batch_size: int = 32  # global means across all GPUs, local means per GPU
     clip_grad_norm: float = 0.01
-    clip_gt_to_mixture: bool = False  # clips the ground truth to the mixture to avoid trying to drive the mask above 1
+    clip_gt_to_mixture: bool = True  # clips the ground truth to the mixture to avoid trying to drive the mask above 1
     weight_decay: float = 1e-4
-    is_debug: bool = False  # no data workers, no DataParallel, etc. TODO: Test this functionality!
+    is_debug: bool = False  # no data workers, no DataParallel, etc.
     log_params_mlflow: bool = True
     log_metrics_mlflow: bool = True
     seed: int = 59438191
@@ -93,7 +94,7 @@ def get_model(cfg: TrainCfg):
         raise ValueError(f'Unknown model name: {cfg.model_name}!')
 
 
-def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
+def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
     assert torch.backends.cudnn.benchmark
 
     # Initialize mlflow if available
@@ -105,11 +106,6 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
 
     if train_cfg.log_params_mlflow:
         log_params_to_mlflow(train_cfg)
-
-    # Take care of paths
-    full_train_dir = str(data_root_in / train_cfg.train_dir)
-    full_val_dir = str(data_root_in / train_cfg.val_dir)
-    full_out_dir = str(data_root_out / train_cfg.out_dir)
 
     # Determine if we are running in distributed mode and initialize accordingly
     if is_dist_env_available():
@@ -161,6 +157,9 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
         weight_decay=train_cfg.weight_decay
     )
 
+    # Set the model to training mode
+    model.train()
+
     # Set up a scheduler
     if train_cfg.scheduler_name == 'step_lr':
         scheduler = StepLR(optimizer, **asdict(train_cfg.scheduler_step_lr_cfg))
@@ -182,14 +181,14 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
         desired_segm_len=int(seg_len_samples))
 
     needed_columns = ['mixture', 'gt_spk_direct_early_echoes', 'gt_noise']
-    train_set = SimulatedDataset(dataset_path=full_train_dir, segment_split_func=seg_split,
+    train_set = SimulatedDataset(dataset_path=train_dir, segment_split_func=seg_split,
                                  seed=44697134, **asdict(train_cfg.train_set_cfg),
                                  single_channel=train_cfg.single_channel, needed_columns=needed_columns)
     log(f'Training set stats: {len(train_set)} segments, {train_set.get_length_seconds() / 3600:.4} hours')
     # train_set = DummySimulatedDataset(num_samples=10000000)
     # log('Using dummy training set!')
 
-    val_set = SimulatedDataset(dataset_path=full_val_dir, segment_split_func=seg_split,
+    val_set = SimulatedDataset(dataset_path=val_dir, segment_split_func=seg_split,
                                seed=836591172, **asdict(train_cfg.val_set_cfg),
                                single_channel=train_cfg.single_channel, needed_columns=needed_columns)
     log(f'Validation set stats: {len(val_set)} segments, {val_set.get_length_seconds() / 3600:.4} hours')
@@ -271,8 +270,6 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
         if is_dist_initialized() and hasattr(sampler_train, 'set_epoch'):
             sampler_train.set_epoch(epoch)
 
-        model.train()
-
         num_batches = len(train_loader)
 
         for iter_in_epoch, batch in takewhile(lambda _: not stop, enumerate(train_loader, start=1)):
@@ -290,6 +287,9 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
             # Augment
             for aug_fn in augmentation_fns:
                 batch = aug_fn(batch)
+
+            # Verify that the model is in training mode
+            assert model.training, 'Model is not in training mode!'
 
             # Calculate loss
             loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=train_cfg.clip_gt_to_mixture)
@@ -377,12 +377,12 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
                 model_path = f'/model_epoch_{epoch:04}.pt' \
                     if train_cfg.save_every is not None and train_cfg.save_every[1] == 'epoch' else \
                     f'/model_iter_{total_iters:07}.pt'
-                model_path = full_out_dir + model_path
+                model_path = out_dir + model_path
 
                 if is_zero_rank():
                     loop_log(f'Saving to {model_path}.')
 
-                    os.makedirs(full_out_dir, exist_ok=True)
+                    os.makedirs(out_dir, exist_ok=True)
                     torch.save({
                         'model': model.state_dict(),
                         'optimizer': optimizer.state_dict(),
@@ -397,7 +397,7 @@ def run_training_css(train_cfg: TrainCfg, data_root_in, data_root_out) -> str:
     if dist.is_initialized():
         dist.destroy_process_group()
 
-    return full_out_dir
+    return out_dir
 
 
 def _calc_loss(segment_batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture: bool):
@@ -461,30 +461,38 @@ def _get_gt_mic0_stft_mag(gt, model, ref_mic: int):
 def eval_model(model, dataloader, device, base_loss_fn, pit_loss, clip_gt_to_mixture):
     """ Evaluate model. DistributedDataParallel (DDP) supported. """
 
+    # Record the model's current mode and set it to eval
+    was_training = model.training
     model.eval()
-    loss_sum = 0.0
-    num_instances = 0
 
-    num_batches = len(dataloader)
-    for it, batch in enumerate(dataloader):
+    try:
+        loss_sum = 0.0
+        num_instances = 0
 
-        # Print progress
-        if it % 10 == 0:
-            log(f'eval it{it}/{num_batches}')
+        num_batches = len(dataloader)
+        for it, batch in enumerate(dataloader):
 
-        # Move to device
-        batch = move_to(batch, device)
+            # Print progress
+            if it % 10 == 0:
+                log(f'eval it{it}/{num_batches}')
 
-        # Calculate loss
-        loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=clip_gt_to_mixture)
+            # Move to device
+            batch = move_to(batch, device)
 
-        current_bs = batch['mixture'].shape[0]
-        loss_sum += current_bs * loss.data.item()
-        num_instances += current_bs
+            # Calculate loss
+            loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=clip_gt_to_mixture)
 
-    # Note that sums should be returned here, not averages. The averages will be calculated in
-    # reduce_metrics_to_rank0().
-    return {'loss': loss_sum, 'num_instances': num_instances}
+            current_bs = batch['mixture'].shape[0]
+            loss_sum += current_bs * loss.data.item()
+            num_instances += current_bs
+
+        # Note that sums should be returned here, not averages. The averages will be calculated in
+        # reduce_metrics_to_rank0().
+        return {'loss': loss_sum, 'num_instances': num_instances}
+
+    finally:
+        # Restore the model's mode
+        model.train(was_training)
 
 
 def reduce_metrics_to_rank0(worker_metrics, device, prefix = None):
@@ -585,10 +593,20 @@ def main():
         else Path(args.data_root_out)
 
     # Load the config
-    train_cfg = utils.conf.get_conf(str(conf_path), TrainCfg)
+    train_cfg = utils.conf.load_yaml_to_dataclass(str(conf_path), TrainCfg)
+
+    # Append the paths specified in the config to the roots above
+    train_dir = data_root_in / train_cfg.train_dir
+    val_dir = data_root_in / train_cfg.val_dir
+    out_dir = data_root_out / train_cfg.out_dir
+
+    # Copy the config to the output directory with a fixed name
+    log(f'Copying the config to {out_dir}')
+    os.makedirs(out_dir, exist_ok=True)
+    shutil.copy(conf_path, str(out_dir / 'config.yaml'))
 
     # Run training
-    run_training_css(train_cfg, data_root_in, data_root_out)
+    run_training_css(train_cfg, train_dir=str(train_dir), val_dir=str(val_dir), out_dir=str(out_dir))
 
     # Once training is done, you can plug the checkpoint and yaml files into css_inference()
     # (see load_separator_model() in css/css.py)

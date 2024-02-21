@@ -10,6 +10,8 @@ val_set_cfg:
   sample_frac: 1.0
   max_urls: 2  # null means no limit
 
+clip_gt_to_mixture: True
+
 log_params_mlflow: False
 log_metrics_mlflow: False
 

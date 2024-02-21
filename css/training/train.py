@@ -64,7 +64,8 @@ class TrainCfg:
     learning_rate: float = 1e-3
     global_batch_size: int = 32  # global means across all GPUs, local means per GPU
     clip_grad_norm: float = 0.01
-    clip_gt_to_mixture: bool = True  # clips the ground truth to the mixture to avoid trying to drive the mask above 1
+    # clips the ground truth to the mixture to avoid trying to drive the mask above 1. "True" is recommended.
+    clip_gt_to_mixture: bool = False
     weight_decay: float = 1e-4
     is_debug: bool = False  # no data workers, no DataParallel, etc.
     log_params_mlflow: bool = True

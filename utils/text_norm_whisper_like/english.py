@@ -464,7 +464,7 @@ class EnglishSpellingNormalizer:
 
 
 class EnglishTextNormalizer:
-    def __init__(self, standardize_numbers=False):
+    def __init__(self, standardize_numbers=False, remove_fillers=True):
         self.replacers = {
             # common non verbal sounds are mapped to the similar ones
             r"\b(hm+)\b|\b(mhm)\b|\b(mm+)\b|\b(m+h)\b|\b(hm+)\b|\b(um+)\b|\b(uhm+)\b": (  # noqa e501
@@ -492,6 +492,8 @@ class EnglishTextNormalizer:
             r"\bcoulda\b": "could have",
             r"\bshoulda\b": "should have",
             r"\bma'am\b": "madam",
+            r"\bokay\b": "ok",
+            r"\bsetup\b": "set up",
             # contractions in titles/prefixes
             r"\bmr\b": "mister ",
             r"\bmrs\b": "missus ",
@@ -537,6 +539,11 @@ class EnglishTextNormalizer:
         self.standardize_spellings = EnglishSpellingNormalizer()
         self.pre_standardize_spellings = EnglishSpellingNormalizer("pre_english.json")
 
+        if remove_fillers:
+            self.fillers = ['hmm', 'uh', 'ah', 'eh']  # assumes replacers have been applied
+        else:
+            self.fillers = None
+
     def __call__(self, s: str):
         s = s.lower()
 
@@ -566,6 +573,12 @@ class EnglishTextNormalizer:
         # that are not preceded/followed by numbers
         s = re.sub(r"[.$¢€£]([^0-9])", r" \1", s)
         s = re.sub(r"([^0-9])%", r"\1 ", s)
+
+        # remove filler words
+        # motivation: these words are very common, yet hold little information in the majority of cases.
+        # some ASR systems may ignore them by convention and will be penalized unfairly.
+        if self.fillers:
+            s = re.sub(r'\b(' + '|'.join(self.fillers) + r')\b', "", s)
 
         s = re.sub(r"\s+", " ", s)
         # replace any successive whitespaces with a space

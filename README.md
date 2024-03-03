@@ -269,3 +269,8 @@ We appreciate your understanding that it is not yet available for academic or co
 However, we are actively working towards expanding its availability for these purposes. 
 We anticipate a forthcoming announcement that will enable broader and more impactful use of this data. Stay tuned for updates. 
 Thank you for your interest and patience.
+
+
+# 🤝 Contribute
+
+Please refer to our [contributing guide](CONTRIBUTING.md) for more information on how to contribute!

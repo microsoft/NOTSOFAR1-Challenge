@@ -670,4 +670,7 @@ class EnglishTextNormalizer:
         s = re.sub(r"\s+", " ", s)
         # replace any successive whitespaces with a space
 
+        s = re.sub(r"^\s+|\s+$", "", s)
+        # remove leading and trailing whitespaces
+
         return s

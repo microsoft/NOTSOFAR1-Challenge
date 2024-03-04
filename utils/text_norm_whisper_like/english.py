@@ -448,6 +448,82 @@ class EnglishNumberNormalizer:
         return s
 
 
+class EnglishReverseNumberNormalizer(EnglishNumberNormalizer):
+    """
+    This is an approximate inverse of EnglishNumberNormalizer that converts arabic numerals
+    into spelled-out numbers.
+
+    Motivation: Whisper's original EnglishNumberNormalizer produces numberals that match Whisper's rich
+    token set, which many ASRs cannot output.
+    This class takes an alternative normalization approach, converting Whisper's numberals back to
+    spelled-out numbers. This ensures compatibility with the token sets of other ASR systems while
+    avoiding penalizing Whisper for outputting numerals.
+
+    Examples of cases handled:
+    - "365" -> "three hundred sixty five"
+    - "$20" -> "twenty dollars"
+    - "50%" -> "fifty percent"
+    - "12th" -> "twelfth", "12s" -> "twelves"
+    - "90th" -> "ninetieth", "90s" -> "nineties"
+    - The special cases of "70 000" -> "seventy thousand" but not larger numbers.
+
+    Caveats: this class takes care of the majority of cases, but it is not perfect.
+    - Only numerals within the 0-1000 range are handled.
+    - Minus/plus signs are not handled.
+    - There is inherent ambiguity e.g. "100" -> "one hundred" or "a hundred".
+    """
+
+    def __init__(self):
+        super().__init__()
+        # Reverse dictionaries
+        self.int_to_ones = {v: k for k, v in self.ones.items()}
+        self.int_to_tens = {v: k for k, v in self.tens.items()}
+
+        # 11th -> eleventh etc.
+        self.str_to_ones_suffixed = {str(n)+s: k for k, (n,s) in self.ones_suffixed.items()}
+        # 20s -> twenties etc.
+        self.str_to_tens_suffixed = {str(n)+s: k for k, (n,s) in self.tens_suffixed.items()}
+
+    def __call__(self, s: str):
+        # "$x[.y]" -> "x[.y] dollars"
+        s = re.sub(r'\$(\d+(\.\d+)?)', r'\1 dollars', s)
+        # "x[.y]"% -> "x[.y] percent"
+        s = re.sub(r'(\d+(\.\d+)?)%', r'\1 percent', s)
+        # note this doesn't handle cases such as -x or +x.
+
+        def number_to_words(w: str):
+            if w.isdigit():
+                num = int(w)
+                if w == '000':
+                    return 'thousand'  # will work in case of "70 000" -> "seventy thousand"
+                if num == 0:
+                    return "zero"
+                elif num == 100:
+                    return "hundred"
+                elif 0 < num < 1000:
+                    hundreds, remainder = divmod(num, 100)
+                    tens, ones = divmod(remainder, 10)
+                    h = [f"{self.int_to_ones[hundreds]} hundred"] if hundreds > 0 else []
+                    if 0 < remainder <= 19:
+                        t = [self.int_to_ones[remainder]]
+                        o = []
+                    else:
+                        t = [self.int_to_tens[tens*10]] if tens > 0 else []
+                        o = [self.int_to_ones[ones]] if ones > 0 else []
+                    return " ".join(h + t + o)
+                elif num == 1000:
+                    return "thousand"
+                else:
+                    return w  # case not handled
+            else:
+                # suffixed numbers
+                w = self.str_to_ones_suffixed.get(w, w)
+                w = self.str_to_tens_suffixed.get(w, w)
+                return w
+
+        return " ".join(number_to_words(w) for w in s.split())
+
+
 class EnglishSpellingNormalizer:
     """
     Applies British-American spelling mappings as listed in [1].
@@ -464,7 +540,7 @@ class EnglishSpellingNormalizer:
 
 
 class EnglishTextNormalizer:
-    def __init__(self, standardize_numbers=False):
+    def __init__(self, standardize_numbers=False, standardize_numbers_rev=True, remove_fillers=True):
         self.replacers = {
             # common non verbal sounds are mapped to the similar ones
             r"\b(hm+)\b|\b(mhm)\b|\b(mm+)\b|\b(m+h)\b|\b(hm+)\b|\b(um+)\b|\b(uhm+)\b": (  # noqa e501
@@ -492,6 +568,9 @@ class EnglishTextNormalizer:
             r"\bcoulda\b": "could have",
             r"\bshoulda\b": "should have",
             r"\bma'am\b": "madam",
+            r"\bokay\b": "ok",
+            r"\bsetup\b": "set up",
+            r"\beveryday\b": "every day",
             # contractions in titles/prefixes
             r"\bmr\b": "mister ",
             r"\bmrs\b": "missus ",
@@ -532,10 +611,22 @@ class EnglishTextNormalizer:
         }
         if standardize_numbers:
             self.standardize_numbers = EnglishNumberNormalizer()
+            assert not standardize_numbers_rev
         else:
             self.standardize_numbers = None
+
+        if standardize_numbers_rev:
+            self.standardize_numbers_rev = EnglishReverseNumberNormalizer()
+        else:
+            self.standardize_numbers_rev = None
+
         self.standardize_spellings = EnglishSpellingNormalizer()
         self.pre_standardize_spellings = EnglishSpellingNormalizer("pre_english.json")
+
+        if remove_fillers:
+            self.fillers = ['hmm', 'uh', 'ah', 'eh']  # assumes replacers have been applied
+        else:
+            self.fillers = None
 
     def __call__(self, s: str):
         s = s.lower()
@@ -561,13 +652,25 @@ class EnglishTextNormalizer:
         if self.standardize_numbers is not None:
             s = self.standardize_numbers(s)
 
+        if self.standardize_numbers_rev is not None:
+            s = self.standardize_numbers_rev(s)
+
         s = self.standardize_spellings(s)
         # now remove prefix/suffix symbols
         # that are not preceded/followed by numbers
         s = re.sub(r"[.$¢€£]([^0-9])", r" \1", s)
         s = re.sub(r"([^0-9])%", r"\1 ", s)
 
+        # remove filler words
+        # motivation: these words are very common, yet hold little information in the majority of cases.
+        # some ASR systems may ignore them by convention and will be penalized unfairly.
+        if self.fillers:
+            s = re.sub(r'\b(' + '|'.join(self.fillers) + r')\b', "", s)
+
         s = re.sub(r"\s+", " ", s)
         # replace any successive whitespaces with a space
+
+        s = re.sub(r"^\s+|\s+$", "", s)
+        # remove leading and trailing whitespaces
 
         return s

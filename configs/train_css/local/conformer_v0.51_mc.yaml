@@ -3,8 +3,6 @@ train_dir: ./v1.2/100hrs/train
 val_dir: ./v1.2/100hrs/val
 out_dir: ./
 
-single_channel: True
-
 train_set_cfg:
   sample_frac: 1.0
   max_urls: null  # null means no limit
@@ -12,8 +10,7 @@ val_set_cfg:
   sample_frac: 1.0
   max_urls: null  # null means no limit
 
-# This model was trained with clip_gt_to_mixture=False, but we recommend to set it to True.
-clip_gt_to_mixture: False
+clip_gt_to_mixture: True
 
 log_params_mlflow: True
 log_metrics_mlflow: True
@@ -37,11 +34,8 @@ weight_decay: 1e-2  # according to the paper set to 1e-2
 
 # Large model per CSS with Conformer definition
 conformer_css_cfg:
-  extractor_conf:
-    ipd_index: ''  # For MC '1,0;2,0;3,0;4,0;5,0;6,0'. For SC ''.
   nnet_conf:
     conformer_conf:
       attention_dim: 512  # default 256
       attention_heads: 8  # default 4
       num_blocks: 18  # default 16
-    in_features: 257  # For MC 1799. For SC 257.

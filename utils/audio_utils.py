@@ -42,7 +42,7 @@ def write_wav(fname, samps: np.ndarray, sr=16000, max_norm: bool = True):
     """
     assert samps.ndim == 1
     if max_norm:
-        samps = samps * 0.99 / np.max(np.abs(samps))
+        samps = samps * 0.99 / (np.max(np.abs(samps)) + 1e-7)
 
     dir_name = os.path.dirname(fname)
     os.makedirs(dir_name, exist_ok=True)

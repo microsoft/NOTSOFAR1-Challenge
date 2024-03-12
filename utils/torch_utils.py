@@ -1,10 +1,9 @@
 import os
-import pickle
-from typing import Optional, Tuple, List, Any, Dict
+from typing import Any, Dict
+import pandas as pd
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.distributed as dist
 
 
@@ -29,6 +28,99 @@ def get_rank():
 
 def is_zero_rank():
     return get_rank() == 0
+
+
+def barrier():
+    if is_dist_initialized():
+        dist.barrier()
+
+
+def get_device_name():
+    if is_dist_initialized():
+        # when the number of nodes is 1, we can use only get_rank() to get the device_id
+        # but when the number of nodes is greater than 1, the device_id can be calculated by:
+        device_id = get_rank() % torch.cuda.device_count()
+        return f'cuda:{device_id}'
+
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+class DDPRowIterator:
+    """ A class that wraps a DataFrame, such that the returned DataFrame row number is divided by the world size
+        (i.e. the number of processes created by the DDP). The padded rows are filled with the row at the given
+        dummy_row_idx field.
+        This is useful for distributed inference, where we want to distribute the data across all processes, such that
+        all processes are working on different rows at the same time, while no process is idle (DDP assumption).
+        The next() method returns a tuple of (row, row_idx, is_dummy) where is_dummy is True if the row is a padded row.
+        Each process will iterate over the rows that are assigned to it, and then stop when the rows are exhausted.
+
+    Args:
+        df (pd.DataFrame): the DataFrame to iterate over
+    """
+
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+        self.world_size = get_world_size()
+        self.current_process_idx = get_rank()
+        self.rows_per_chunk = len(df) // self.world_size
+        self.remainder = len(df) % self.world_size
+        self.current_row_idx = 0
+        self.dummy_row_idx = self.current_process_idx
+        assert self.dummy_row_idx < len(self.df), f'{self.dummy_row_idx=} must be less than {len(self.df)=}'
+
+    @property
+    def _padded_df_len(self):
+        return len(self.df) + ((self.world_size - self.remainder) if self.remainder > 0 else 0)
+
+    def __len__(self):
+        return int(self._padded_df_len / self.world_size)
+
+    def __iter__(self):
+        self.current_row_idx = self.current_process_idx
+        return self
+
+    def __next__(self):
+        if self.current_row_idx >= self._padded_df_len:
+            # Wait for all processes to finish processing
+            barrier()
+            raise StopIteration
+
+        row_idx = self.current_row_idx
+
+        if row_idx < len(self.df):
+            is_dummy = False
+            row = self.df.iloc[row_idx]
+        else:
+            # if we are here, we are padding the DataFrame (self.current_row_idx >= len(self.df))
+            is_dummy = True
+            row = self.df.iloc[self.dummy_row_idx]
+
+        self.current_row_idx += self.world_size
+        return row, row_idx, is_dummy
+
+
+def initialize_ddp(logger):
+    """ Process group initialization for distributed inference """
+    if is_dist_env_available():
+        rank = int(os.environ['RANK'])
+        world_size = int(os.environ['WORLD_SIZE'])
+        dist.init_process_group('nccl', rank=rank, world_size=world_size)
+        logger.info(f'Distributed: {get_rank()=}, {get_world_size()=}')
+        # NOTE! must call set_device or allocations go to GPU 0 disproportionally, causing CUDA OOM.
+        torch.cuda.set_device(torch.device(get_device_name()))
+        dist.barrier()
+
+    return get_device_name()
+
+
+def get_max_value(value: int) -> int:
+    """ Returns the maximum value from all processes """
+    if not is_dist_initialized():
+        return value
+
+    tensor = torch.tensor(value).cuda()
+    dist.all_reduce(tensor, op=dist.ReduceOp.MAX)
+    return int(tensor.item())
 
 
 def move_to(obj: Any, device: torch.device, numpy: bool=False) -> Any:

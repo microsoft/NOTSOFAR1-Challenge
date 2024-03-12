@@ -94,9 +94,8 @@ def prepare_diarized_data_frame(all_words, segments_df, apply_deduplication):
     diarized_segments_df['session_id'] = segments_df['session_id'][0]
     
     # assign correct CSS file name to each diarized segment
-    wav_file_name_prefix = os.path.splitext(segments_df['wav_file_name'][0])[0][:-1]
     stream_id = [seg[0][-1] for seg in diarized_segments_df.word_timing.to_list()]
-    diarized_segments_df['wav_file_name'] = [f"{wav_file_name_prefix}{i}.wav" for i in stream_id]
+    diarized_segments_df['wav_file_name'] = segments_df['wav_file_name'].cat.categories[stream_id]
 
     diarized_segments_df['speaker_id'] = segments["speaker_id"]
     

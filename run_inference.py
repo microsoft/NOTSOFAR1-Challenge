@@ -70,7 +70,7 @@ def main(config_name: ConfigName = 'dev_set_1_mc_debug', output_dir: str = ""):
 
     cache_cfg = FetchFromCacheCfg()  # no cache, use this at your own risk.
 
-    exp_name = 'css' + '_' + cfg.asr.model_name
+    exp_name = ('pass_through' if cfg.css.pass_through_ch0 else 'css') + '_' + cfg.asr.model_name
     outputs_dir = outputs_dir / exp_name
     
     pprint(f'{config_name=}')

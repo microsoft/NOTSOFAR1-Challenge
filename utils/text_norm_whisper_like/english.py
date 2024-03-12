@@ -540,6 +540,21 @@ class EnglishSpellingNormalizer:
 
 
 class EnglishTextNormalizer:
+    """
+    This is a modified version of the Whisper text normalizer designed to enhance compatibility
+    across various ASRs.
+
+    Key features:
+
+    1. Idempotency: output is unchanged with repeated application.
+    2. The original Whisper-tailored number normalization is replaced with one that is compatible with
+        other ASR systems, mapping numerals into spelled-out numbers.
+        See EnglishReverseNumberNormalizer for details and limitations.
+    3. Filler words are removed by default, similar to the original normalizer: ['hmm', 'uh', 'ah', 'eh'].
+        This is for compatibility with ASRs trained to ignore these.
+    4. Added normalization for some common words: okay -> ok, everyday -> every day etc.
+
+    """
     def __init__(self, standardize_numbers=False, standardize_numbers_rev=True, remove_fillers=True):
         self.replacers = {
             # common non verbal sounds are mapped to the similar ones

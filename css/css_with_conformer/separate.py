@@ -100,7 +100,7 @@ def run(args):
     print('spks',len(spks),spks[0].shape)
 
     if args.mvdr:
-        res1, res2 = make_mvdr(np.asfortranarray(mixed.T), spks)
+        res1, res2 = make_mvdr(spks[:2], spks[2:], np.asfortranarray(mixed.T))
         spks = [res1, res2]
 
     sf.write(dump_dir / f"{duration_sec}_mix.wav", egs['mix'][0].cpu().numpy(), sr)

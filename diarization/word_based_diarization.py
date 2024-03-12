@@ -1,14 +1,16 @@
 import os
+from typing import Optional
 import pandas as pd
 import numpy as np
-from omegaconf import OmegaConf
 import torch
 from torch.cuda.amp import autocast
+from tqdm import tqdm
 
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.utils.offline_clustering import NMESC, SpectralClustering, cos_similarity, getCosAffinityMatrix, getAffinityGraphMat
 
 from utils.audio_utils import read_wav
+from utils.torch_utils import is_dist_initialized
 from diarization.diarization import DiarizationCfg
 from diarization.diarization_common import prepare_diarized_data_frame, DiarizationCfg
 from utils.logging_def import get_logger
@@ -23,7 +25,7 @@ def load_speaker_model(model_name: str, device: str):
     _LOG.info("Loading pretrained {} model from NGC".format(model_name))
     spk_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_name, map_location=device)
     spk_model.eval()
-    
+
     return spk_model
 
 
@@ -44,9 +46,9 @@ def run_clustering(raw_affinity_mat: np.array, max_num_speakers: int=8, max_rp_t
 
     spectral_model = SpectralClustering(n_clusters=n_clusters)
     cluster_label = spectral_model.forward(affinity_mat)
-    
+
     return cluster_label
-    
+
 
 def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_embedding_windows, max_allowed_word_duration=3):
     """
@@ -56,23 +58,22 @@ def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_em
 
     all_words = []
     all_word_embeddings = []
-    for _, seg in segments_df.iterrows():
+    too_long_words = []
+
+    n_words = sum(len(seg['word_timing']) for _, seg in segments_df.iterrows())
+    _segments_df, _ = _fill_dummy_words_for_ddp(segments_df)
+    words_processed = 0
+
+    for _, seg in tqdm(_segments_df.iterrows(), desc='extracting speaker embedding for segments', total=len(_segments_df)):
         # get the unmixed channel id for current segment
-        channel_id = int(os.path.splitext(os.path.basename(seg.wav_file_name))[0][-1])
+        channel_id = seg.wav_file_name_ind
 
         for word in seg["word_timing"]:
             start_time = word[1]
             end_time = word[2]
             center_time = (start_time + end_time) / 2
             word_duration = end_time - start_time
-            
-            if word_duration > max_allowed_word_duration:
-                # Very long word duration is very suspicious and may harm diarization. Ignore them for now. 
-                # Note that these words will disappear in the final result. 
-                # To do: find a better way to deal with these words. 
-                _LOG.info(f"word '{word[0]}' has unreasonablly long duration ({start_time}s, {end_time}s). Skip it in diarization")
-                continue
-            
+
             # extract multi-scale speaker embedding for the word
             word_embedding = []
             for min_window_size in min_embedding_windows:
@@ -92,17 +93,36 @@ def extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, min_em
                 word_wav = wavs[channel_id][start_sample:end_sample]
                 word_wav = torch.tensor(word_wav[np.newaxis], dtype=torch.float32).to(spk_model.device)
                 word_lens = torch.tensor([word_wav.shape[1]], dtype=torch.int).to(spk_model.device)
-                with autocast():
+                with autocast(), torch.no_grad():
                     _, tmp_embedding = spk_model.forward(input_signal=word_wav, input_signal_length=word_lens)
                 word_embedding.append(tmp_embedding.cpu().detach())
-            
+
+            words_processed += 1
+
+            if words_processed > n_words:
+                # This is a dummy word added for DDP. Skip it.
+                continue
+
+            if word_duration > max_allowed_word_duration:
+                # Very long word duration is very suspicious and may harm diarization. Ignore them for now.
+                # Note that these words will disappear in the final result.
+                # To do: find a better way to deal with these words.
+                _LOG.info(f"word '{word[0]}' has unreasonablly long duration ({start_time}s, {end_time}s). Skip it in diarization")
+                too_long_words.append(word)
+                continue
+
+            # append only the real words (do not append dummy words)
             all_words.append(word+[channel_id])
             all_word_embeddings.append(torch.vstack(word_embedding))
-            
-    return all_words, all_word_embeddings
-            
 
-def word_based_clustering(audio_files: list, segments_df: pd.DataFrame, cfg: DiarizationCfg):
+    print(f'Done extracting embeddings. {words_processed=}, {len(all_words)=}, {n_words=}', flush=True)
+    n_real_words = n_words - len(too_long_words)
+    assert len(all_words) == n_real_words, f"Number of words {len(all_words)} != n_real_words {n_real_words}"
+    return all_words, all_word_embeddings
+
+
+def word_based_clustering(audio_files: list, segments_df: pd.DataFrame, cfg: DiarizationCfg,
+                          device: Optional[str] = None):
     """
     Treat each ASR word as a segment and run NMESC for clustering.
     
@@ -122,16 +142,21 @@ def word_based_clustering(audio_files: list, segments_df: pd.DataFrame, cfg: Dia
     have the same size, i.e. NxN, where N is the number of words. So no resampling is needed.
     """
     # load unmixed waveforms
-    wavs = [read_wav(audio_file, normalize=True, return_rate=True) for audio_file in audio_files]
-    sr = wavs[0][0]
-    wavs = np.vstack([wav[1] for wav in wavs])
-    
+    srs, wavs = zip(*[read_wav(audio_file, normalize=True, return_rate=True) for audio_file in audio_files])
+    sr = srs[0]
+    max_length = max([wav.size for wav in wavs])
+    # pad to the maximum length and stack. padding is only relevant to segmented close-talk.
+    # CSS always returns equal-length channels.
+    wavs = np.vstack(
+        [np.pad(wav, (0, max_length - wav.size), 'constant', constant_values=(0, 0)) for wav in
+         wavs])
+
     # load speaker embedding model
-    spk_model = load_speaker_model(cfg.embedding_model_name, device=None)
-    
+    spk_model = load_speaker_model(cfg.embedding_model_name, device=device)
+
     # extract word-based multi-scale speaker embedding vectors
-    all_words, all_word_embeddings = extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model, 
-                                                                         cfg.min_embedding_windows, 
+    all_words, all_word_embeddings = extract_speaker_embedding_for_words(segments_df, wavs, sr, spk_model,
+                                                                         cfg.min_embedding_windows,
                                                                          cfg.max_allowed_word_duration)
 
     # compute affinity matrix for clustering
@@ -149,5 +174,40 @@ def word_based_clustering(audio_files: list, segments_df: pd.DataFrame, cfg: Dia
     # prepare segment data frame
     all_words = [word+[f"spk{spk_idx}"] for word, spk_idx in zip(all_words, cluster_label)]
     diarized_segments_df = prepare_diarized_data_frame(all_words, segments_df, cfg.apply_deduplication)
-    
+
     return diarized_segments_df
+
+
+def _fill_dummy_words_for_ddp(segments_df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """
+    Fill the last segment with dummy words to make the number of words the same across all processes in DDP.
+
+    Returns:
+        (a COPY of segments_df with dummy words added to the last segment, number of real words, number of dummies)
+    """
+
+    if not is_dist_initialized():
+        return segments_df, 0
+
+    n_words = sum(len(seg['word_timing']) for _, seg in segments_df.iterrows())
+    max_words = get_max_value(n_words)
+    print(f"Number of segments: {len(segments_df)}, Number of words: {n_words}, max_words(in DDP): {max_words}")
+
+    # find first segment with non-empty word_timing
+    for i in range(len(segments_df)):
+        if len(segments_df.iloc[i]['word_timing']) > 0:
+            dummy_word = segments_df.iloc[i]['word_timing'][-1].copy()
+            break
+
+    # fill last segment with dummy data
+    _segments_df = segments_df.copy()
+    n_dummies = max_words - n_words
+    for _ in range(n_dummies):
+        _segments_df.iloc[-1]['word_timing'].append(dummy_word)
+
+    n_words_with_dummies = sum([len(seg['word_timing']) for _, seg in _segments_df.iterrows()])
+    assert n_words_with_dummies == max_words, \
+        f"Number of words with dummies {n_words_with_dummies} != max_words {max_words}"
+    print(f"Number of words to process (with dummies): {n_words_with_dummies}")
+
+    return _segments_df, n_dummies

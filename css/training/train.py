@@ -86,6 +86,9 @@ class TrainCfg:
     save_every: Optional[Tuple] = None
     scheduler_step_every: Optional[Tuple] = (1, 'epochs')
     stop_after: Optional[Tuple] = (120, 'epochs')
+    calc_side_info: bool = False
+    loss_name: Optional[str] = None
+    base_loss_name: Optional[str] = None
 
 
 def get_model(cfg: TrainCfg):

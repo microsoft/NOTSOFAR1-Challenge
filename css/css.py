@@ -12,6 +12,7 @@ from scipy.io.wavfile import write
 from torch import nn
 from tqdm import trange
 
+from css.css_with_conformer.utils.mvdr_util import make_mvdr
 from css.training.conformer_wrapper import ConformerCssWrapper
 from css.training.train import TrainCfg, get_model
 from css.training.losses import mse_loss, l1_loss, PitWrapper
@@ -20,7 +21,7 @@ from utils.logging_def import get_logger
 from utils.mic_array_model import multichannel_mic_pos_xyz_cm
 from utils.conf import load_yaml_to_dataclass
 from utils.numpy_utils import dilate, erode
-from utils.plot_utils import plot_stitched_masks, plot_left_right_stitch
+from utils.plot_utils import plot_stitched_masks, plot_left_right_stitch, plot_separation_methods
 from utils.audio_utils import play_wav
 
 _LOG = get_logger('css')
@@ -33,7 +34,7 @@ class CssCfg:
     hop_size_sec: float = 1.5     # in seconds
     normalize_segment_power: bool = False
     stitching_loss: str = 'l1'  # loss function for stitching adjacent segments ('l1' or 'mse')
-    stitching_input: str = 'mask' # type of input for stitching loss ('mask' or 'masked_mag')
+    stitching_input: str = 'mask' # type of input for stitching loss ('mask' or 'separation_result')
     seg_weight_m0_sec: float = 0.15  # see calc_segment_weight
     seg_weight_m1_sec: float = 0.3
     activity_th: float = 0.4  # threshold for segmentation mask
@@ -41,10 +42,15 @@ class CssCfg:
     activity_erosion_sec: float = 0.2
     device: Optional[str] = None
     show_progressbar: bool = True
-    checkpoint_sc: str = 'notsofar/conformer0.5/sc'  # segment-wise single-channel model
-    checkpoint_mc: str = 'notsofar/conformer0.5/mc'  # segment-wise multi-channel model
+    # segment-wise single-channel model
+    checkpoint_sc: str = 'notsofar/conformer1.0/sc'
+    # segment-wise multi-channel model
+    checkpoint_mc: str = 'notsofar/conformer1.0/mc'
     device_id: int = 0
     num_spks: int = 3  # the number of streams the separation models outputs
+    mc_mvdr: bool = True  # if True, applies MVDR to the multi-channel input
+    mc_mask_floor_db: float = 0.  # mask floor in db. -inf means no floor. 0 means mask has no effect
+    sc_mask_floor_db: float = -np.inf
     pass_through_ch0: bool = False  # if True, simply returns the first channel of the input and skips CSS
     slice_audio_for_debug: bool = False  # if True, only processes 10 seconds of the input audio
 
@@ -103,7 +109,7 @@ def css_inference(out_dir: str, models_dir: str, session: pd.Series, cfg: CssCfg
         mixwav = mixwav[np.newaxis, :, np.newaxis]  # [Batch, Nsamples, Channels]
 
     if cfg.slice_audio_for_debug:
-        mixwav = mixwav[:, sr*20:sr*30, :]
+        mixwav = mixwav[:, sr*100:sr*110, :]
 
     separated_wavs = separate_and_stitch(mixwav, separator, sr, device, cfg)
 
@@ -213,7 +219,7 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     T = segment_frames
     pad_shape = stft_mix[:, :, :T].shape  # [B, F, T, Mics]
 
-    masked_seg_list = []
+    separated_seg_list = []
     spk_masks_list = []
 
     assert not separator.training
@@ -244,17 +250,34 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
 
         assert masks['spk_masks'].shape[3] == cfg.num_spks
         assert stft_seg.shape[:3] == stft_seg.shape[:3]
+        ref_channel = 0
+        stft_seg_device_chref = stft_seg_device[:, :, :, ref_channel]
         # masks['spk_masks']:    [B, F, T, num_spks]
         # stft_seg_device:       [B, F, T, Channels]
         # stft_seg_device_chref: [B, F, T]
-        ref_channel = 0
-        stft_seg_device_chref = stft_seg_device[:, :, :, ref_channel]
 
-        # mask multiplication
-        # TODO: support segment-level MVDR for MC with up to 3 speakers
-        masked_seg = [stft_seg_device_chref * m  # m: [B, F, T]
-                      for m in th.unbind(masks['spk_masks'], dim=3)]
-        masked_seg = torch.stack(masked_seg, dim=-1)  # [B, F, T, num_spks]
+        num_channels = stft_seg_device.shape[3]
+        if num_channels > 1 and cfg.mc_mvdr:
+            mvdr_responses = make_mvdr(masks['spk_masks'].squeeze(0).moveaxis(2, 0).cpu().numpy(),
+                                       masks['noise_masks'].squeeze(0).moveaxis(2, 0).cpu().numpy(),
+                                       mix_stft=stft_seg_device.squeeze(0).moveaxis(2, 0).cpu().numpy(),
+                                       return_stft=True)
+            mvdr_responses = torch.from_numpy(np.stack(mvdr_responses, axis=-1)).unsqueeze(0).to(device)
+            # [B, F, T, num_spks]
+            seg_for_masking = mvdr_responses
+        else:
+            seg_for_masking = stft_seg_device_chref.unsqueeze(-1)  # [B, F, T, 1]
+
+        # floored mask multiplication. if mask_floor_db == 0, mask is all-ones (assuming mask in [0, 1] range)
+        mask_floor_db = cfg.mc_mask_floor_db if num_channels > 1 else cfg.sc_mask_floor_db
+        assert mask_floor_db <= 0
+        mask_floor = 10. ** (mask_floor_db / 20.)  # dB to amplitude
+        mask_clipped = torch.clip(masks['spk_masks'], min=mask_floor)
+        separated_seg = seg_for_masking * mask_clipped  # [B, F, T, num_spks]
+
+        # Plot for debugging
+        # plot_separation_methods(stft_seg_device_chref, masks, mvdr_responses, separator, cfg,
+        #                         plots=['mvdr', 'masked_mvdr', 'spk_masks', 'masked_ref_ch', 'mixture'])
 
         if cfg.normalize_segment_power:
             # normalize to match the input mixture power
@@ -264,15 +287,15 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
                            dim=(1, 2), keepdim=True)
             )
 
-            assert torch.is_complex(masked_seg)
+            assert torch.is_complex(separated_seg)
             sep_energy = torch.sqrt(
-                torch.mean(masked_seg[:, :, :t].sum(-1).abs().pow(2),  # sum over spks, squared mag
+                torch.mean(separated_seg[:, :, :t].sum(-1).abs().pow(2),  # sum over spks, squared mag
                            dim=(1, 2), keepdim=True
                 )
             )
-            masked_seg = (mix_energy / sep_energy)[..., None]  * masked_seg
+            separated_seg = (mix_energy / sep_energy)[..., None]  * separated_seg
 
-        masked_seg_list.append(masked_seg.cpu())         # [B, F, T, num_spks]
+        separated_seg_list.append(separated_seg.cpu())         # [B, F, T, num_spks]
         spk_masks_list.append(masks['spk_masks'].cpu())  # [B, F, T, num_spks]
 
 
@@ -283,7 +306,7 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     # add first segment
     wg_seg = calc_segment_weight(segment_frames, m0_frames, m1_frames, is_first_seg=True)
     wg_stitched[:segment_frames] += wg_seg
-    stft_stitched[:, :, :segment_frames] += wg_seg.view(1, 1, -1, 1) * masked_seg_list[0]
+    stft_stitched[:, :, :segment_frames] += wg_seg.view(1, 1, -1, 1) * separated_seg_list[0]
     mask_stitched[:, :, :segment_frames] += wg_seg.view(1, 1, -1, 1) * spk_masks_list[0]
 
     pit = PitWrapper({'mse': mse_loss, 'l1': l1_loss}[cfg.stitching_loss])
@@ -292,9 +315,9 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
     for i in range(1, num_segments):
         if cfg.stitching_input == 'mask':
             left_input, right_input = spk_masks_list[i-1], spk_masks_list[i]
-        elif cfg.stitching_input == 'masked_mag':
+        elif cfg.stitching_input == 'separation_result':
             # masked magnitudes
-            left_input, right_input = masked_seg_list[i - 1].abs(), masked_seg_list[i].abs()
+            left_input, right_input = separated_seg_list[i - 1].abs(), separated_seg_list[i].abs()
         else:
             assert False, f'unexpected stitching_input: {cfg.stitching_input}'
 
@@ -303,12 +326,12 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
 
         # Plot for debugging:
         # plot_left_right_stitch(separator, left_input, right_input, right_perm,
-        #                        overlap_frames, cfg, stft_seg_to_play=masked_seg_list[i][..., 0], fs=fs)
+        #                        overlap_frames, cfg, stft_seg_to_play=separated_seg_list[i][..., 0], fs=fs)
 
         # permute current segment to match with the previous one
         for ib in range(batch_size):
             spk_masks_list[i][ib] = spk_masks_list[i][ib, ..., right_perm[ib]]
-            masked_seg_list[i][ib] = masked_seg_list[i][ib, ..., right_perm[ib]]
+            separated_seg_list[i][ib] = separated_seg_list[i][ib, ..., right_perm[ib]]
 
         st = i * hop_frames
         en = min(st + segment_frames, mix_frames)
@@ -316,8 +339,8 @@ def separate_and_stitch(speech_mix: np.ndarray, separator: ConformerCssWrapper, 
         wg_seg = calc_segment_weight(segment_frames, m0_frames, m1_frames, is_last_seg=(i==num_segments-1))
         wg_seg = wg_seg[:en-st]  # last segment may be shorter
         wg_stitched[st:en] += wg_seg
-        assert torch.is_complex(masked_seg_list[i]), 'summation assumes complex representation'
-        stft_stitched[:, :, st:en] += wg_seg.view(1, 1, -1, 1) * masked_seg_list[i][:, :, :en-st]
+        assert torch.is_complex(separated_seg_list[i]), 'summation assumes complex representation'
+        stft_stitched[:, :, st:en] += wg_seg.view(1, 1, -1, 1) * separated_seg_list[i][:, :, :en-st]
         mask_stitched[:, :, st:en] += wg_seg.view(1, 1, -1, 1) * spk_masks_list[i][:, :, :en-st]
 
     assert (wg_stitched > 1e-5).all(), 'zero weights found. check hop_size, segment_size or m0, m1'

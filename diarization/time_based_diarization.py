@@ -126,7 +126,7 @@ def assign_words_to_speakers(segments_df: pd.DataFrame, spk_vad: np.array, apply
     all_words = []
     for _, seg in segments_df.iterrows():
         # get the unmixed channel id for current segment
-        channel_id = int(os.path.splitext(os.path.basename(seg.wav_file_name))[0][-1])
+        channel_id = seg.wav_file_name_ind
 
         for i, word in enumerate(seg["word_timing"]):
             start_frame = int(np.round(word[1]/vad_time_resolution))

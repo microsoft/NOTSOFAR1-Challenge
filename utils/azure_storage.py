@@ -110,9 +110,10 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
                             version: str, destination_dir: Union[str, Path],
                             overwrite: bool = False) -> Optional[str]:
     """
-    Download a subset of the meeting dataset to the destination directory.
-    The subsets and versions available will be updated in:
-        https://www.chimechallenge.org/current/task2/index
+    Downloads a subset of the NOTSOFAR recorded meeting dataset.
+
+    The subsets will be released according to the timeline in:
+        https://www.chimechallenge.org/current/task2/index#dates
 
     Args:
         subset_name: name of split to download (dev_set / eval_set / train_set)
@@ -122,12 +123,19 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
                    (warning!: if true, will delete the entire destination_dir if it exists)
 
 
-    Latest available datsets:
+    Latest available versions:
 
     # dev_set, no GT available. submit your systems to leaderboard to measure WER.
     res_dir = download_meeting_subset(subset_name='dev_set', version='240208.2_dev', destination_dir=...)
 
-    # train_set, with GT for training models.
+    # first and second train-set batches combined, with GT for training models.
+    res_dir = download_meeting_subset(subset_name='train_set', version='240229.1_train', destination_dir=...)
+
+
+
+    Previous versions:
+
+    # first train-set batch, with GT for training models.
     res_dir = download_meeting_subset(subset_name='train_set', version='240208.2_train', destination_dir=...)
 
 

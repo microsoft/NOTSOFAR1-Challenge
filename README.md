@@ -1,11 +1,45 @@
+[![Slack][slack-badge]][slack-invite]
+
+
+[slack-badge]: https://img.shields.io/badge/slack-chat-green.svg?logo=slack
+[slack-invite]: https://join.slack.com/t/chime-fey5388/shared_invite/zt-1oha0gedv-JEUr1mSztR7~iK9AxM4HOA
+
 # Introduction 
 Welcome to the "NOTSOFAR-1: Distant Meeting Transcription with a Single Device" Challenge.
 
 This repo contains the baseline system code for the NOTSOFAR-1 Challenge.
 
-For more details see:
-1. CHiME website: https://www.chimechallenge.org/current/task2/index
-2. Preprint: https://arxiv.org/abs/2401.08887
+- For more information about NOTSOFAR, visit [CHiME's official challenge website](https://www.chimechallenge.org/current/task2/index)
+- [Register](https://www.chimechallenge.org/current/task2/submission) to participate.
+- [Baseline system description](https://www.chimechallenge.org/current/task2/baseline).
+- Contact us: join the `chime-8-notsofar` channel on the [CHiME Slack](https://join.slack.com/t/chime-fey5388/shared_invite/zt-1oha0gedv-JEUr1mSztR7~iK9AxM4HOA), or open a [GitHub issue](https://github.com/microsoft/NOTSOFAR1-Challenge/issues). 
+
+### 📊 Baseline Results on NOTSOFAR dev-set-1
+
+Values are presented in `tcpWER / tcORC-WER (session count)` format.
+<br>
+As mentioned in the [official website](https://www.chimechallenge.org/current/task2/index#tracks), 
+systems are ranked based on the speaker-attributed 
+[tcpWER](https://github.com/fgnt/meeteval/blob/main/doc/tcpwer.md)
+, while the speaker-agnostic [tcORC-WER](https://github.com/fgnt/meeteval) serves as a supplementary metric for analysis.
+<br>
+We include analysis based on a selection of hashtags from our [metadata](https://www.chimechallenge.org/current/task2/data#metadata), providing insights into how different conditions affect system performance.
+
+
+
+|                      | Single-Channel        | Multi-Channel         |
+|----------------------|-----------------------|-----------------------|
+| All Sessions         | **46.8** / 38.5 (177) | **32.4** / 26.7 (106) |
+| #NaturalMeeting      | 47.6 / 40.2 (30)      | 32.3 / 26.2 (18)      |
+| #DebateOverlaps      | 54.9 / 44.7 (39)      | 38.0 / 31.4 (24)      |
+| #TurnsNoOverlap      | 32.4 / 29.7 (10)      | 21.2 / 18.8 (6)       |
+| #TransientNoise=high | 51.0 / 43.7 (10)      | 33.6 / 29.1 (5)       |
+| #TalkNearWhiteboard  | 55.4 / 43.9 (40)      | 39.9 / 31.2 (22)      |
+
+
+
+
+
 
 
 # Project Setup
@@ -143,7 +177,8 @@ Begin by exploring the following components:
 
 ### Training datasets
 For training and fine-tuning your models, NOTSOFAR offers the **simulated training set** and the training portion of the
-**recorded meeting dataset**. Refer to the `download_simulated_subset` and `download_meeting_subset` functions in `utils/azure_storage.py`, 
+**recorded meeting dataset**. Refer to the `download_simulated_subset` and `download_meeting_subset` functions in 
+[utils/azure_storage.py](https://github.com/microsoft/NOTSOFAR1-Challenge/blob/main/utils/azure_storage.py#L109), 
 or the [NOTSOFAR-1 Datasets](#notsofar-1-datasets---download-instructions) section.
 
 
@@ -159,10 +194,12 @@ python run_training_css_local.py
 ## 2. Training on the full simulated training dataset
 
 ### Step 1: Download the simulated training dataset
-You can use the `download_simulated_subset` function in `utils/azure_storage.py` to download the training dataset from blob storage.
+You can use the `download_simulated_subset` function in 
+[utils/azure_storage.py](https://github.com/microsoft/NOTSOFAR1-Challenge/blob/main/utils/azure_storage.py)
+to download the training dataset from blob storage.
 You have the option to download either the complete dataset, comprising almost 1000 hours, or a smaller, 200-hour subset.
 
-For example, to download the entire 1000-hour dataset, make the following calls to download both the training and validation subsets:
+Examples:
 ```python
 ver='v1.5'  # this should point to the lateset and greatest version of the dataset.
 
@@ -223,8 +260,11 @@ Alternatively, using AzCopy CLI, set these arguments and run the following comma
 - `version`: version to download (`240103g` / etc.). Use the latest version. 
 - `datasets_path` - path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
 
-Currently only **dev_set** (no GT) and **train_set** are available. See timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index) for when the other sets will be released.
-See doc in `download_meeting_subset` function in `utils/azure_storage.py` for latest available versions.
+Train, dev, and eval sets are released for the NOTSOFAR challenge are released in stages. 
+See release timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index#dates).
+See doc in `download_meeting_subset` function in 
+[utils/azure_storage.py](https://github.com/microsoft/NOTSOFAR1-Challenge/blob/main/utils/azure_storage.py#L109) 
+for latest available versions.
 
 ```bash
 azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/<subset_name>/<version>/MTG <datasets_path>/benchmark --recursive
@@ -259,7 +299,7 @@ azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/<version>/<vol
 
 Example:
 ```bash
-azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/1000hrs/train . --recursive
+azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/200hrs/train . --recursive
 ```
 
 
@@ -274,3 +314,4 @@ Thank you for your interest and patience.
 # 🤝 Contribute
 
 Please refer to our [contributing guide](CONTRIBUTING.md) for more information on how to contribute!
+

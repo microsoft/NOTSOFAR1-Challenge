@@ -10,6 +10,10 @@ css:
   device: "cuda:0"
   show_progressbar: True
   slice_audio_for_debug: False
+  mc_mvdr: True
+  mc_mask_floor_db: 0.
+  sc_mask_floor_db: -inf
+  activity_th: 0.3
 
 diarization:
   method: 'word_nmesc'     # choose from "word_nmesc", "nmesc" and "nmesc_msdd"

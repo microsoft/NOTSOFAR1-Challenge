@@ -11,6 +11,10 @@ css:
   show_progressbar: True
   slice_audio_for_debug: False
   pass_through_ch0: False
+  mc_mvdr: True
+  mc_mask_floor_db: 0.  # for MC, MVDR without any direct masking worked best
+  sc_mask_floor_db: -inf  # for SC, direct masking without floor worked best
+  activity_th: 0.3
 
 diarization:
   method: 'word_nmesc'     # choose from "word_nmesc", "nmesc" and "nmesc_msdd"

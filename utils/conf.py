@@ -1,4 +1,5 @@
-from typing import TypeVar, Type, Dict
+from typing import TypeVar, Type, Dict, Union
+from pathlib import Path
 import argparse
 from dataclasses import dataclass, field
 
@@ -7,7 +8,8 @@ from omegaconf import OmegaConf
 
 ConfT = TypeVar('ConfT')
 
-def load_yaml_to_dataclass(yaml_path: str, conf_type: Type[ConfT]) -> ConfT:
+
+def load_yaml_to_dataclass(yaml_path: Union[str, Path], conf_type: Type[ConfT]) -> ConfT:
     """
     Load a YAML file and convert it to a dataclass object.
 

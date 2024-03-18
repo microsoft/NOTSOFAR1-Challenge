@@ -1,0 +1,42 @@
+# Note that this model uses a mask-based loss, in contrast to a masked magnitude loss that was used in conformer_v0.5.
+train_dir: ./v1.5/200hrs/train
+val_dir: ./v1.5/200hrs/val
+out_dir: ./
+
+train_set_cfg:
+  sample_frac: 1.0
+  max_urls: null  # null means no limit
+val_set_cfg:
+  sample_frac: 1.0
+  max_urls: null  # null means no limit
+
+calc_side_info: True
+log_params_mlflow: True
+log_metrics_mlflow: True
+
+scheduler_step_every: [1, iterations]
+scheduler_name: step_lr
+scheduler_step_lr_cfg:
+  # Fixed LR
+  step_size: 1
+  gamma: 1.0
+
+stop_after: [520000, iterations]
+eval_every: [1000, iterations]
+save_every: [1000, iterations]
+
+loss_name: 'mask'
+base_loss_name: 'l1'
+
+global_batch_size: 256
+learning_rate: 1e-4
+weight_decay: 1e-2  # according to the paper set to 1e-2
+
+# Large model per CSS with Conformer definition
+conformer_css_cfg:
+  nnet_conf:
+    conformer_conf:
+      attention_dim: 512  # default 256
+      attention_heads: 8  # default 4
+      num_blocks: 18  # default 16
+      dropout_rate: 0.0  # New! The default was 0.1.

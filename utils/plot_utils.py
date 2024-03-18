@@ -8,11 +8,20 @@ import torch
 from utils.audio_utils import play_wav, write_wav
 
 
-def plot_stitched_masks(mask_stitched, activity_b, activity_final, cfg):
+def plot_stitched_masks(mask_stitched, activity_b, activity_final, cfg, title_str: Optional[str] = None,
+                        out_filename: Optional[str] = None, segment_frames=None, segment_size_sec=None):
     import matplotlib.pyplot as plt
     activity = mask_stitched.mean(dim=1)  # [B, T, num_spks]
     total_plots = cfg.num_spks * 2
     time_frames = mask_stitched.size(2)  # Assuming the number of time frames is the third dimension
+
+    if segment_frames is not None or segment_size_sec is not None:
+        assert segment_frames is not None and segment_size_sec is not None, \
+            'Either both segment_frames and segment_size_sec must be provided or none!'
+        frames_per_sec = int(segment_frames / segment_size_sec)
+    else:
+        frames_per_sec = None
+
     plt.figure(figsize=(15, 5 * total_plots))
     for j in range(cfg.num_spks):
         # Plot for mask_stitched
@@ -23,7 +32,9 @@ def plot_stitched_masks(mask_stitched, activity_b, activity_final, cfg):
         # plt.xlabel("Time Frames")
         plt.ylabel("Frequency Bins")
         plt.xlim(0, time_frames - 1)  # Set x-axis limits
-
+        if frames_per_sec is not None:
+            plt.xticks(range(0, time_frames, frames_per_sec//2),
+                       list(map(lambda x: x / frames_per_sec, range(0, time_frames, frames_per_sec//2))))
         # Plot for activity
         plt.subplot(total_plots, 1, 2 * j + 2)
         plt.plot(activity[0, :, j], label='mean mask')
@@ -35,9 +46,16 @@ def plot_stitched_masks(mask_stitched, activity_b, activity_final, cfg):
         plt.ylabel("Average Activity")
         plt.xlim(0, time_frames - 1)  # Set x-axis limits to be the same as the mask_stitched plot
         plt.ylim(0, 1.05)
+        if frames_per_sec is not None:
+            plt.xticks(range(0, time_frames, frames_per_sec//2),
+                       list(map(lambda x: x / frames_per_sec, range(0, time_frames, frames_per_sec//2))))
         plt.legend(loc='best')  # Add a legend
-    plt.suptitle('Speaker Masks and Activities')
-    plt.show()
+    plt.suptitle(title_str or 'Speaker Masks and Activities')
+
+    if out_filename is None:
+        plt.show()
+    else:
+        plt.savefig(out_filename, bbox_inches='tight')
 
 
 def plot_left_right_stitch(separator, left_input, right_input, right_perm, overlap_frames,

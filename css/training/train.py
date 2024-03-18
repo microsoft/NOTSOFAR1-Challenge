@@ -20,7 +20,7 @@ import css.training.losses
 from css.training.augmentations import MicShiftAugmentation
 from css.training.schedulers import LinearWarmupDecayCfg, LinearWarmupDecayScheduler
 from css.training.simulated_dataset import SegmentSplitter, SimulatedDataset
-from css.training.conformer_wrapper import ConformerCssCfg, ConformerCssWrapper, DummyCss
+from css.training.conformer_wrapper import ConformerCssCfg, ConformerCssWrapper
 from utils.torch_utils import get_world_size, get_rank, is_dist_initialized, move_to, catch_unused_params, \
     is_zero_rank, reduce_dict_to_rank0, is_dist_env_available
 import utils.conf
@@ -62,12 +62,15 @@ class TrainCfg:
     segment_pr_force_align: float = 0.5
 
     learning_rate: float = 1e-3
-    global_batch_size: int = 32  # global means across all GPUs, local means per GPU
+    global_batch_size: int = 32  # Global means across all GPUs, local means per GPU
     clip_grad_norm: float = 0.01
-    # clips the ground truth to the mixture to avoid trying to drive the mask above 1. "True" is recommended.
-    clip_gt_to_mixture: bool = False
+    clip_gt_to_mixture: bool = False  # Clips the ground truth to the mixture to avoid trying to drive the mask above 1
     weight_decay: float = 1e-4
-    is_debug: bool = False  # no data workers, no DataParallel, etc.
+    noise_weight: float = 1.0  # Weight for the noise loss. The speaker loss weight is fixed to 1.
+    calc_side_info: bool = False  # Calculate additional side information (e.g. mask L1/L2 loss) during training
+    base_loss_name: str = 'mse'  # Options: {'mse', 'l1'}
+    loss_name: str = 'masked_mag'  # Options: {'masked_mag', 'mask'}
+    is_debug: bool = False  # No data workers, no DataParallel, etc.
     log_params_mlflow: bool = True
     log_metrics_mlflow: bool = True
     seed: int = 59438191
@@ -86,12 +89,9 @@ class TrainCfg:
     save_every: Optional[Tuple] = None
     scheduler_step_every: Optional[Tuple] = (1, 'epochs')
     stop_after: Optional[Tuple] = (120, 'epochs')
-    calc_side_info: bool = False
-    loss_name: Optional[str] = None
-    base_loss_name: Optional[str] = None
 
 
-def get_model(cfg: TrainCfg):
+def get_model(cfg: TrainCfg) -> nn.Module:
     if cfg.model_name == 'css_with_conformer':
         return ConformerCssWrapper(cfg.conformer_css_cfg)
     else:
@@ -173,7 +173,8 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
         raise ValueError(f'Unknown scheduler name: {train_cfg.scheduler_name}!')
 
     # PIT loss
-    base_loss_fn = css.training.losses.mse_loss
+    base_loss_fn = getattr(css.training.losses, train_cfg.base_loss_name + '_loss', None)
+    assert base_loss_fn is not None, f'Unknown base loss name: {train_cfg.base_loss_name}!'
     pit_loss = css.training.losses.PitWrapper(base_loss_fn)
 
     # Construct the datasets
@@ -264,6 +265,7 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
 
     # Set up some variables for training
     loss_sum = 0.0
+    accumulated_si = None  # si stands for side info
     num_instances = 0
     total_iters = 1  # Note that iterations and epochs are 1-based
     stop = False
@@ -296,7 +298,7 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
             assert model.training, 'Model is not in training mode!'
 
             # Calculate loss
-            loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=train_cfg.clip_gt_to_mixture)
+            loss, current_si = _calc_loss(batch, model, base_loss_fn, pit_loss, train_cfg)
 
             # with DataParallel, loss is either [Batch] or [#GPU] tensor depending on model
 
@@ -318,6 +320,8 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
             # Collect the running loss
             current_bs = batch['mixture'].shape[0]
             loss_sum += current_bs * loss.data.item()
+            accumulated_si = accumulate_side_info(accumulated_si, current_si, current_bs)
+
             num_instances += current_bs
 
             def is_every(freq):
@@ -346,9 +350,8 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
                 torch.cuda.empty_cache()
 
                 # Get the worker-local metrics for train/val sets
-                train_metrics = {'loss': loss_sum, 'num_instances': num_instances}
-                val_metrics = eval_model(model, val_loader, device, base_loss_fn, pit_loss,
-                                         clip_gt_to_mixture=train_cfg.clip_gt_to_mixture)
+                train_metrics = {'loss': loss_sum, 'num_instances': num_instances, **(accumulated_si or {})}
+                val_metrics = eval_model(model, val_loader, device, base_loss_fn, pit_loss, train_cfg)
 
                 # Reduce the metrics to rank0
                 train_metrics = reduce_metrics_to_rank0(train_metrics, device, prefix='train/')
@@ -373,6 +376,7 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
 
                 # Reset the running loss
                 loss_sum = 0.0
+                accumulated_si = None
                 num_instances = 0
 
             # Save the model
@@ -404,7 +408,8 @@ def run_training_css(train_cfg: TrainCfg, train_dir, val_dir, out_dir) -> str:
     return out_dir
 
 
-def _calc_loss(segment_batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture: bool):
+def _calc_loss(segment_batch, model, base_loss_fn, pit_loss, train_cfg: TrainCfg,
+               sum_over_noise: bool = False):
 
     ref_mic = 0  # reference microphone index
 
@@ -416,30 +421,89 @@ def _calc_loss(segment_batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture:
     # Apply STFT on the mic0 mixture, take the magnitude, and add a singleton dimension to allow broadcasting
     # over speakers/noise.
     mix_mic0_mag_ft = module.stft(mix[:, :, ref_mic]).abs()[..., None]  # -> magnitude [Batch, F, T, 1]
-
-    # Calculate speakers and noise magnitude spectrograms after masking
-    pred_spks = res['spk_masks'] * mix_mic0_mag_ft  # -> [Batch, F, T, #spks]
-    pred_noise = res['noise_masks'] * mix_mic0_mag_ft  # -> [Batch, F, T, #noise]
-    assert pred_noise.shape[-1] == 1, f'NOTSOFAR supports one noise mask, got {pred_noise.shape[-1]}!'
-    pred_noise = pred_noise.squeeze(-1)  # -> [Batch, F, T]
+    eps = torch.finfo(mix_mic0_mag_ft.dtype).eps
 
     # Apply STFT on the ground truth signals and take the magnitude
     gt_spks = _get_gt_mic0_stft_mag(segment_batch['gt_spk_direct_early_echoes'], model, ref_mic)  # -> magnitude [Batch, F, T, #spks]
-    gt_noise = module.stft(segment_batch['gt_noise'][:, :, ref_mic]).abs() # -> magnitude [Batch, F, T]
+    gt_noise = module.stft(segment_batch['gt_noise'][:, :, ref_mic]).abs()  # -> magnitude [Batch, F, T]
 
     # Clip the ground truth to the mixture to avoid trying to drive the mask above 1. Context: The CSS with Conformer
     # model applies a sigmoid activation at the top.
-    if clip_gt_to_mixture:
-        gt_spks = torch.min(gt_spks, mix_mic0_mag_ft)
+    if train_cfg.clip_gt_to_mixture or train_cfg.calc_side_info:
+        gt_spks_clipped = torch.min(gt_spks, mix_mic0_mag_ft)
         assert mix_mic0_mag_ft.shape[-1] == 1  # the last singleton dimension was added above, sanity check
-        gt_noise = torch.min(gt_noise, mix_mic0_mag_ft[..., 0])
+        gt_noise_clipped = torch.min(gt_noise, mix_mic0_mag_ft[..., 0])
+    else:
+        gt_spks_clipped = None
+        gt_noise_clipped = None
 
-    # Calculate the loss
-    noise_loss = base_loss_fn(pred_noise, gt_noise).mean(dim=(1, 2))  # -> [Batch]
-    spk_loss, target_perm = pit_loss(pred_spks, gt_spks)  # -> [Batch]
-    loss = spk_loss + noise_loss  # -> [Batch]
+    # Prepare "effective" GT for loss calculation
+    gt_spks_effective = gt_spks_clipped if train_cfg.clip_gt_to_mixture else gt_spks
+    gt_noise_effective = gt_noise_clipped if train_cfg.clip_gt_to_mixture else gt_noise
 
-    return loss.mean()
+    # Prepare masks for loss calculation
+    pred_spks_masks = res['spk_masks']  # -> [Batch, F, T, #spks]
+    pred_noise_masks = res['noise_masks']  # -> [Batch, F, T, #noise]
+
+    # Sum over noise if requested
+    pred_noise_masks = pred_noise_masks.sum(dim=-1) if sum_over_noise else pred_noise_masks.squeeze(-1)  # -> [Batch, F, T]
+
+    if train_cfg.loss_name == 'masked_mag':
+        # Masked magnitude spectrogram based loss
+        spk_loss, target_perm = pit_loss(
+            preds=pred_spks_masks * mix_mic0_mag_ft,  # -> [Batch, F, T, #spks]
+            targets=gt_spks_effective
+        )  # -> [Batch]
+
+        noise_loss = base_loss_fn(
+            pred_noise_masks * mix_mic0_mag_ft[..., 0],  # -> [Batch, F, T]
+            gt_noise_effective
+        ).mean(dim=(1, 2))  # -> [Batch]
+
+    elif train_cfg.loss_name == 'mask':
+        # Mask based loss
+        assert mix_mic0_mag_ft.shape[-1] == 1  # the last singleton dimension was added above, sanity check
+        spk_loss, target_perm = pit_loss(
+            preds=pred_spks_masks,
+            targets=gt_spks_effective / (mix_mic0_mag_ft + eps)
+        )  # -> [Batch]
+
+        noise_loss = base_loss_fn(
+            pred_noise_masks,
+            gt_noise_effective / (mix_mic0_mag_ft[..., 0] + eps)
+        ).mean(dim=(1, 2))  # -> [Batch]
+    else:
+        raise ValueError(f'Unknown loss name: {train_cfg.loss_name}!')
+
+    # Combine the losses
+    loss = (spk_loss + train_cfg.noise_weight*noise_loss).mean()  # -> scalar
+
+    # Calculate side information
+    if train_cfg.calc_side_info:
+        with torch.no_grad():
+            def calc_si(in_gt_spks, in_gt_noise, prefix):
+                # Calculate the expected masks for speakers, while permuting to match the target permutation
+                expected_spk_mask = torch.zeros_like(in_gt_spks)
+                for i_sample in range(in_gt_spks.shape[0]):
+                    expected_spk_mask[i_sample] = \
+                        in_gt_spks[i_sample, :, :, target_perm[i_sample]] / (mix_mic0_mag_ft[i_sample, :, :] + eps)
+
+                # Calculate the expected noise mask
+                expected_noise_mask = in_gt_noise / (mix_mic0_mag_ft[..., 0] + eps)
+
+                return {
+                    prefix + 'spk_mask_l1': css.training.losses.l1_loss(res['spk_masks'], expected_spk_mask).mean().item(),
+                    prefix + 'noise_mask_l1': css.training.losses.l1_loss(res['noise_masks'][..., 0], expected_noise_mask).mean().item(),
+                }
+            side_info = {
+                **calc_si(gt_spks, gt_noise, ''),
+                **calc_si(gt_spks_clipped, gt_noise_clipped, 'clipped_'),
+            }
+
+    else:
+        side_info = None
+
+    return loss, side_info
 
 
 def _get_gt_mic0_stft_mag(gt, model, ref_mic: int):
@@ -462,7 +526,8 @@ def _get_gt_mic0_stft_mag(gt, model, ref_mic: int):
 
 
 @torch.no_grad()
-def eval_model(model, dataloader, device, base_loss_fn, pit_loss, clip_gt_to_mixture):
+def eval_model(model, dataloader, device, base_loss_fn, pit_loss, train_cfg: TrainCfg,
+               sum_over_noise: bool = False):
     """ Evaluate model. DistributedDataParallel (DDP) supported. """
 
     # Record the model's current mode and set it to eval
@@ -471,7 +536,10 @@ def eval_model(model, dataloader, device, base_loss_fn, pit_loss, clip_gt_to_mix
 
     try:
         loss_sum = 0.0
+        accumulated_si = None  # si stands for side info
         num_instances = 0
+
+        assert not model.training, 'Model is not in eval mode!'
 
         num_batches = len(dataloader)
         for it, batch in enumerate(dataloader):
@@ -484,22 +552,33 @@ def eval_model(model, dataloader, device, base_loss_fn, pit_loss, clip_gt_to_mix
             batch = move_to(batch, device)
 
             # Calculate loss
-            loss = _calc_loss(batch, model, base_loss_fn, pit_loss, clip_gt_to_mixture=clip_gt_to_mixture)
+            loss, current_si = _calc_loss(batch, model, base_loss_fn, pit_loss, train_cfg, sum_over_noise)
 
             current_bs = batch['mixture'].shape[0]
             loss_sum += current_bs * loss.data.item()
             num_instances += current_bs
+            accumulated_si = accumulate_side_info(accumulated_si, current_si, current_bs)
 
         # Note that sums should be returned here, not averages. The averages will be calculated in
         # reduce_metrics_to_rank0().
-        return {'loss': loss_sum, 'num_instances': num_instances}
+        return {'loss': loss_sum, 'num_instances': num_instances, **(accumulated_si or {})}
 
     finally:
         # Restore the model's mode
         model.train(was_training)
 
 
-def reduce_metrics_to_rank0(worker_metrics, device, prefix = None):
+def accumulate_side_info(accumulated_si, current_si, current_bs):
+    if current_si is not None:
+        if accumulated_si is None:
+            accumulated_si = current_si
+        else:
+            accumulated_si = {k: accumulated_si[k] + current_bs * current_si[k] for k in accumulated_si.keys()}
+
+    return accumulated_si
+
+
+def reduce_metrics_to_rank0(worker_metrics, device, prefix=None):
 
     def calc_average_metrics(metrics):
         res = {k: v / metrics['num_instances'] for k, v in metrics.items()

@@ -125,15 +125,22 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
     Latest available versions:
 
-    # dev_set, no GT available. submit your systems to leaderboard to measure WER.
+    # dev-set-2, no GT available. Submit your systems to leaderboard to measure WER.
+    # dev-set-2 includes mostly new participants compared to the training sets and dev-set-1.
+    res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev', destination_dir=...)
+
+    # first and second train-set batches and dev-set-1 (GT unveiled) combined, with GT for training models.
+    # dev-set-1 and the training sets have significant participant overlap. Use dev-set-2 for development.
+    res_dir = download_meeting_subset(subset_name='train_set', version='240415.1_train', destination_dir=...)
+
+
+    Previous versions:
+
+    # dev-set-1, no GT available. Previous leaderboard was used to measure WER.
     res_dir = download_meeting_subset(subset_name='dev_set', version='240208.2_dev', destination_dir=...)
 
     # first and second train-set batches combined, with GT for training models.
     res_dir = download_meeting_subset(subset_name='train_set', version='240229.1_train', destination_dir=...)
-
-
-
-    Previous versions:
 
     # first train-set batch, with GT for training models.
     res_dir = download_meeting_subset(subset_name='train_set', version='240208.2_train', destination_dir=...)

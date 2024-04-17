@@ -33,7 +33,7 @@ def load_config(config_name: ConfigName) -> InferenceCfg:
     elif config_name == 'dev_set_1_mc_debug':
         # for quick debug: 'tiny' Whisper, one MC (multi-channel) session
         conf_file = project_root / 'configs/inference/debug_inference.yaml'
-        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30860"'
+        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30500"'
 
     else:
         raise ValueError(f'unknown config name: {config_name}')
@@ -54,8 +54,8 @@ def main(config_name: ConfigName = 'dev_set_1_mc_debug', output_dir: str = ""):
 
     # download the entire dev-set (all sessions, multi-channel and single-channel)
     meetings_root = project_root / 'artifacts' / 'meeting_data'
-    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',  # dev-set is without GT for now
-                                               version='240208.2_dev',
+    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',  # dev-set-2 is without GT for now
+                                               version='240415.2_dev',
                                                destination_dir=str(meetings_root))
 
     if dev_meetings_dir is None:

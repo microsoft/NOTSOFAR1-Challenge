@@ -240,7 +240,7 @@ calculate the loss when training.
 # NOTSOFAR-1 Datasets - Download Instructions
 This section is for those specifically interested in downloading the NOTSOFAR datasets.<br>
 The NOTSOFAR-1 Challenge provides two datasets: a recorded meeting dataset and a simulated training dataset. <br>
-The datasets are stored in Azure Blob Storage, to download them, you will need to setup [AzCopy](https://aka.ms/downloadazcopy-v10-linux-arm64)
+The datasets are stored in Azure Blob Storage, to download them, you will need to setup [AzCopy](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10#download-azcopy).
 
 You can use either the python utilities in `utils/azure_storage.py` or the `AzCopy` command to download the datasets as described below.
 
@@ -260,7 +260,7 @@ Alternatively, using AzCopy CLI, set these arguments and run the following comma
 - `version`: version to download (`240103g` / etc.). Use the latest version. 
 - `datasets_path` - path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
 
-Train, dev, and eval sets are released for the NOTSOFAR challenge are released in stages. 
+Train, dev, and eval sets for the NOTSOFAR challenge are released in stages. 
 See release timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index#dates).
 See doc in `download_meeting_subset` function in 
 [utils/azure_storage.py](https://github.com/microsoft/NOTSOFAR1-Challenge/blob/main/utils/azure_storage.py#L109) 
@@ -272,7 +272,7 @@ azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/<subset_
 
 Example:
 ```bash
-azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240208.2_dev/MTG . --recursive
+azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240415.2_dev/MTG . --recursive
 ````
 
 

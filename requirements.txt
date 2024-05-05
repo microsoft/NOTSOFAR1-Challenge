@@ -6,7 +6,7 @@ soundfile==0.12.1
 omegaconf==2.3.0
 psutil== 5.9.7
 sounddevice==0.4.6
-tqdm==4.66.1
+tqdm==4.66.3
 ffmpeg
 librosa==0.10.1
 matplotlib==3.8.2

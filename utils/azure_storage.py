@@ -145,8 +145,8 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
     Previous versions:
 
-    # this dataset is identical to the updated "240501.1_train" except it includes some faulty devices
-    # that have been removed in the newer version.
+    # this dataset is identical to the updated "240501.1_train" except it includes some faulty multi-channel
+    # devices with replicated channels that have been removed in the newer version.
     res_dir = download_meeting_subset(subset_name='train_set', version='240415.1_train', destination_dir=...)
 
 

@@ -137,8 +137,8 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
     Note: to sync to a newer version of a dataset without downloading the entire dataset again
     (as in the case of 240415.1_train -> 240501.1_train), you can use 'azcopy sync'.
     Example:
-        azcopy sync https://notsofarsa.blob.core.windows.net/benchmark-datasets/train_set/240501.1_train/MTG
-        <local-directory-path>/MTG --recursive --delete-destination=true
+        azcopy sync https://notsofarsa.blob.core.windows.net/benchmark-datasets/train_set/240501.1_train/MTG/
+        <local-directory-path>/MTG/ --recursive --delete-destination=true --compare-hash=MD5
     Note that this command will delete files that are not present in the source, but not directories.
     After running `azcopy sync`, you should run a script to remove any remaining empty directories.
 

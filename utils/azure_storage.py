@@ -129,12 +129,26 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
     # dev-set-2 includes mostly new participants compared to the training sets and dev-set-1.
     res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev', destination_dir=...)
 
-    # first and second train-set batches and dev-set-1 (GT unveiled) combined, with GT for training models.
+    # training set: first and second train-set batches and dev-set-1 (GT unveiled) combined.
     # dev-set-1 and the training sets have significant participant overlap. Use dev-set-2 for development.
-    res_dir = download_meeting_subset(subset_name='train_set', version='240415.1_train', destination_dir=...)
+    res_dir = download_meeting_subset(subset_name='train_set', version='240501.1_train', destination_dir=...)
+
+
+    Note: to sync to a newer version of a dataset without downloading the entire dataset again
+    (as in the case of 240415.1_train -> 240501.1_train), you can use 'azcopy sync'.
+    Example:
+        azcopy sync https://notsofarsa.blob.core.windows.net/benchmark-datasets/train_set/240501.1_train/MTG/
+        <local-directory-path>/MTG/ --recursive --delete-destination=true --compare-hash=MD5
+    Note that this command will delete files that are not present in the source, but not directories.
+    After running `azcopy sync`, you should run a script to remove any remaining empty directories.
 
 
     Previous versions:
+
+    # this dataset is identical to the updated "240501.1_train" except it includes some faulty multi-channel
+    # devices with replicated channels that have been removed in the newer version.
+    res_dir = download_meeting_subset(subset_name='train_set', version='240415.1_train', destination_dir=...)
+
 
     # dev-set-1, no GT available. Previous leaderboard was used to measure WER.
     res_dir = download_meeting_subset(subset_name='dev_set', version='240208.2_dev', destination_dir=...)

@@ -141,8 +141,8 @@ With the provided `devcontainer.json` you can run and work on the project in a [
 
 
 # Running evaluation - the inference pipeline
-The following command will download the **entire dev-set** of the recorded meeting dataset and run the inference pipeline
-according to selected configuration. The default is configured to `--config-name dev_set_1_mc_debug` for quick debugging, 
+The following command will download the **entire dev-set-2** of the recorded meeting dataset and run the inference pipeline
+according to selected configuration. The default is configured to `--config-name dev_set_mc_debug` for quick debugging, 
 running on a single session with the Whisper 'tiny' model.
 ```bash
 cd /path/to/NOTSOFAR1-Challenge
@@ -272,7 +272,7 @@ azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/<subset_
 
 Example:
 ```bash
-azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240415.2_dev/MTG . --recursive
+azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240415.2_dev_with_GT/MTG . --recursive
 ````
 
 

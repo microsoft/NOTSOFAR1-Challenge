@@ -112,7 +112,10 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
     """
     Downloads a subset of the NOTSOFAR recorded meeting dataset.
 
-    The subsets will be released according to the timeline in:
+    Note that you can also use AzCopy CLI as described in the README file at:
+        https://github.com/microsoft/NOTSOFAR1-CHALLENGE.
+
+    The subsets will be released according to the timeline at:
         https://www.chimechallenge.org/current/task2/index#dates
 
     Args:
@@ -125,12 +128,12 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
     Latest available versions:
 
-    # dev-set-2, no GT available. Submit your systems to leaderboard to measure WER.
-    # dev-set-2 includes mostly new participants compared to the training sets and dev-set-1.
-    res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev', destination_dir=...)
+    # dev-set-2, GT available.
+    # dev-set-2 includes mostly new speakers compared to the training sets and dev-set-1.
+    res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev_with_GT', destination_dir=...)
 
     # training set: first and second train-set batches and dev-set-1 (GT unveiled) combined.
-    # dev-set-1 and the training sets have significant participant overlap. Use dev-set-2 for development.
+    # dev-set-1 and the training sets have significant speaker overlap. Use dev-set-2 for development.
     res_dir = download_meeting_subset(subset_name='train_set', version='240501.1_train', destination_dir=...)
 
 
@@ -145,10 +148,13 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
     Previous versions:
 
-    # this dataset is identical to the updated "240501.1_train" except it includes some faulty multi-channel
+    # dev-set-2, no GT available. Submit your systems to leaderboard to measure WER.
+    # dev-set-2 includes mostly new speakers compared to the training sets and dev-set-1.
+    res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev', destination_dir=...)
+
+    # this dataset is identical to the newer "240501.1_train" except it includes some faulty multi-channel
     # devices with replicated channels that have been removed in the newer version.
     res_dir = download_meeting_subset(subset_name='train_set', version='240415.1_train', destination_dir=...)
-
 
     # dev-set-1, no GT available. Previous leaderboard was used to measure WER.
     res_dir = download_meeting_subset(subset_name='dev_set', version='240208.2_dev', destination_dir=...)

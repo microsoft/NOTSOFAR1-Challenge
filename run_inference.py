@@ -7,7 +7,7 @@ from inference_pipeline.inference import InferenceCfg, inference_pipeline, Fetch
 from utils.azure_storage import download_meeting_subset, download_models
 from utils.conf import load_yaml_to_dataclass, update_dataclass
 
-ConfigName = Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_1_mc_debug']
+ConfigName = Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_mc_debug']
 
 
 def get_project_root() -> Path:
@@ -30,7 +30,7 @@ def load_config(config_name: ConfigName) -> InferenceCfg:
         conf_file = project_root / 'configs/inference/inference_v1.yaml'
         session_query = "is_mc == False"  # filter only SC
 
-    elif config_name == 'dev_set_1_mc_debug':
+    elif config_name == 'dev_set_mc_debug':
         # for quick debug: 'tiny' Whisper, one MC (multi-channel) session
         conf_file = project_root / 'configs/inference/debug_inference.yaml'
         session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30500"'
@@ -48,14 +48,14 @@ def load_config(config_name: ConfigName) -> InferenceCfg:
     return cfg
 
 
-def main(config_name: ConfigName = 'dev_set_1_mc_debug', output_dir: str = ""):
+def main(config_name: ConfigName = 'dev_set_mc_debug', output_dir: str = ""):
     project_root = get_project_root()
     cfg: InferenceCfg = load_config(config_name)
 
     # download the entire dev-set (all sessions, multi-channel and single-channel)
     meetings_root = project_root / 'artifacts' / 'meeting_data'
-    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',  # dev-set-2 is without GT for now
-                                               version='240415.2_dev',
+    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',  # dev-set-2, GT included
+                                               version='240415.2_dev_with_GT',
                                                destination_dir=str(meetings_root))
 
     if dev_meetings_dir is None:
@@ -86,8 +86,8 @@ def main(config_name: ConfigName = 'dev_set_1_mc_debug', output_dir: str = ""):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run inference pipeline')
-    parser.add_argument('--config-name', type=str, default="dev_set_1_mc_debug",
-                        help='Config scenario for the inference, default: dev_set_1_mc_debug')
+    parser.add_argument('--config-name', type=str, default="dev_set_mc_debug",
+                        help='Config scenario for the inference, default: dev_set_mc_debug')
     parser.add_argument('--output-dir', type=str, default="",
                         help='Output directory path, default: ./artifacts/outputs')
     args = parser.parse_args()

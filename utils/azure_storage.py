@@ -112,7 +112,10 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
     """
     Downloads a subset of the NOTSOFAR recorded meeting dataset.
 
-    The subsets will be released according to the timeline in:
+    Note that you can also use AzCopy CLI as described in the README file at:
+        https://github.com/microsoft/NOTSOFAR1-CHALLENGE.
+
+    The subsets will be released according to the timeline at:
         https://www.chimechallenge.org/current/task2/index#dates
 
     Args:

@@ -272,8 +272,8 @@ azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/<subset_
 
 Examples:
 ```bash 
-# eval-set, no GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
-azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240629.1_eval_small/MTG . --recursive
+# eval-set, GT included, smaller version with 16 hours per track for the NOTSOFAR Challenge.
+azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240629.1_eval_small_with_GT/MTG . --recursive
 
 # dev-set-2, GT included.
 azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240415.2_dev_with_GT/MTG . --recursive

@@ -128,9 +128,9 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
     Latest available versions:
 
-    # eval-set, no GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
+    # eval-set, GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
     # Entirely disjoint from the Training and Development sets, with no overlap in participants or rooms.
-    res_dir = download_meeting_subset(subset_name='eval_set', version='240629.1_eval_small', destination_dir=...)
+    res_dir = download_meeting_subset(subset_name='eval_set', version='240629.1_eval_small_with_GT', destination_dir=...)
 
     # dev-set-2, GT available.
     # dev-set-2 includes mostly new speakers compared to the training sets and dev-set-1.
@@ -151,6 +151,10 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
 
     Previous versions:
+
+    # eval-set, no GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
+    # Entirely disjoint from the Training and Development sets, with no overlap in participants or rooms.
+    res_dir = download_meeting_subset(subset_name='eval_set', version='240629.1_eval_small', destination_dir=...)
 
     # dev-set-2, no GT available. Submit your systems to leaderboard to measure WER.
     # dev-set-2 includes mostly new speakers compared to the training sets and dev-set-1.

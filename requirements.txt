@@ -12,7 +12,7 @@ librosa==0.10.1
 matplotlib==3.8.2
 # Note that CUDA drivers are backward-compatible in some cases. See https://docs.nvidia.com/deploy/cuda-compatibility/.
 -f https://download.pytorch.org/whl/cu117/torch_stable.html
-torch==1.13.1+cu117
+torch==2.2.0
 torchaudio==0.13.1+cu117
 torchvision==0.14.1+cu117
 nemo_toolkit[all]

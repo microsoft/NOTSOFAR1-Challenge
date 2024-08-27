@@ -284,7 +284,8 @@ except faulty white-noise recordings of sc_rockfall_1 have been removed from 3 m
     azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240629.1_eval_small_with_GT/MTG . --recursive
     ```
 
-- `240825.1_eval_full_with_GT`: A larger evaluation set to facilitate further research and increase statistical significane of performance evaluations. 129 meetings and a variety of devices: 3 multi-channel, and 6-7 single-channel.
+- `240825.1_eval_full_with_GT`: A larger evaluation set to facilitate further research and increase statistical significane of performance evaluations. 
+It includes 129 meetings and a greater variety of devices: 3 multi-channel, and 6-7 single-channel.
     ```bash
     azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240825.1_eval_full_with_GT/MTG . --recursive
     ```

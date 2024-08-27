@@ -7,7 +7,7 @@
 # Introduction 
 Welcome to the "NOTSOFAR-1: Distant Meeting Transcription with a Single Device" Challenge.
 
-This repo contains the baseline system code for the NOTSOFAR-1 Challenge.
+This repo contains the baseline system code and datasets for the NOTSOFAR-1 Challenge.
 
 - For more information about NOTSOFAR, visit [CHiME's official challenge website](https://www.chimechallenge.org/current/task2/index)
 - [Register](https://www.chimechallenge.org/current/task2/submission) to participate.
@@ -237,64 +237,87 @@ calculate the loss when training.
 
 
 
-# NOTSOFAR-1 Datasets - Download Instructions
+# NOTSOFAR-1 Datasets
 This section is for those specifically interested in downloading the NOTSOFAR datasets.<br>
 The NOTSOFAR-1 Challenge provides two datasets: a recorded meeting dataset and a simulated training dataset. <br>
-The datasets are stored in Azure Blob Storage, to download them, you will need to setup [AzCopy](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10#download-azcopy).
 
-You can use either the python utilities in `utils/azure_storage.py` or the `AzCopy` command to download the datasets as described below.
+The datasets are provided for open research. See the [Data License](#data-license) section.
+<br>They are hosted in Azure Blob Storage. See download instructions below.
+<br>Visis the [Data section on CHiME's website](https://www.chimechallenge.org/current/task2/data) to explore the data further.
 
 
+## 1. Recorded Meeting Dataset for Benchmarking and Training
 
-### Meeting Dataset for Benchmarking and Training
+The NOTSOFAR-1 Recorded Meeting Dataset is a collection of 237 meetings, each averaging 6 minutes, recorded across 30 conference rooms with 4-8 attendees, featuring a total of 35 unique speakers. This dataset captures a broad spectrum of real-world acoustic conditions and conversational dynamics.
 
-The NOTSOFAR-1 Recorded Meeting Dataset is a collection of 315 meetings, each averaging 6 minutes, recorded across 30 conference rooms with 4-8 attendees, featuring a total of 35 unique speakers. This dataset captures a broad spectrum of real-world acoustic conditions and conversational dynamics.
+### Download Instructions
 
-### Download
+To download the dataset, you can call the python function [download_meeting_subset](https://github.com/microsoft/NOTSOFAR1-Challenge/blob/main/utils/azure_storage.py#L109) within `utils/azure_storage.py`.
 
-To download the dataset, you can call the python function `download_meeting_subset` within `utils/azure_storage.py`.
-
-Alternatively, using AzCopy CLI, set these arguments and run the following command:
+Alternatively, using [AzCopy](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10#download-azcopy) CLI, set these arguments and run the following command:
 
 - `subset_name`: name of split to download (`dev_set` / `eval_set` / `train_set`).
-- `version`: version to download (`240103g` / etc.). Use the latest version. 
+- `version`: version to download. 
 - `datasets_path` - path to the directory where you want to download the benchmarking dataset (destination directory must exist). <br>
-
-Train, dev, and eval sets for the NOTSOFAR challenge are released in stages. 
-See release timeline on the [NOTSOFAR page](https://www.chimechallenge.org/current/task2/index#dates).
-See doc in `download_meeting_subset` function in 
-[utils/azure_storage.py](https://github.com/microsoft/NOTSOFAR1-Challenge/blob/main/utils/azure_storage.py#L109) 
-for latest available versions.
 
 ```bash
 azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/<subset_name>/<version>/MTG <datasets_path>/benchmark --recursive
 ```
 
-Examples:
-```bash 
-# eval-set, GT included, smaller version with 16 hours per track for the NOTSOFAR Challenge.
-azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240629.1_eval_small_with_GT/MTG . --recursive
+### Latest Train, Dev and Eval Subsets
 
-# dev-set-2, GT included.
-azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240415.2_dev_with_GT/MTG . --recursive
+- `240825.1_train`: Corresponds to Train-set-1 and Train-set-2 from the
+[challenge datasets](https://www.chimechallenge.org/current/task2/data#meetings-recordings-dataset), 
+except faulty white-noise recordings of sc_rockfall_1 have been removed from 3 meetings.
+    ```bash
+    azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/train_set/240825.1_train/MTG . --recursive    
+    ```
 
-# training set: all training-set batches and dev-set-1 combined, GT included.
-azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/train_set/240501.1_train/MTG . --recursive    
-````
+- `240825.1_dev1`: Same as Dev-set-1 from the challenge. Users should be mindful of speakers overlap: there are 12 speakers, 10 of which are in the training set.
+
+    ```bash
+    azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/dev_set/240825.1_dev1/MTG . --recursive
+    ```
+
+- `240629.1_eval_small_with_GT`: Identical to the challenge evaluation set, hence enabling direct comparison to challenge results. This relatively smaller evaluation set is designed for resource-constrained research and includes 80 meetings with 2 devices per track (single-channel/multi-channel), totaling 16 hours for each. Ground-truth is available.
+    ```bash
+    azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240629.1_eval_small_with_GT/MTG . --recursive
+    ```
+
+- `240825.1_eval_full_with_GT`: A larger evaluation set to facilitate further research and increase statistical significane of performance evaluations. 129 meetings and a variety of devices: 3 multi-channel, and 6-7 single-channel.
+    ```bash
+    azcopy copy https://notsofarsa.blob.core.windows.net/benchmark-datasets/eval_set/240825.1_eval_full_with_GT/MTG . --recursive
+    ```
 
 
-### Simulated Training Dataset
+### Comparison to the subsets used during the NOTSOFAR-1 Challenge
 
-The NOTSOFAR-1 Training Dataset is a 1000-hour simulated training dataset, synthesized with enhanced authenticity for real-world generalization, incorporating 15,000 real acoustic transfer functions.
+The dataset currently available for open research have been modified, with the major differences being:
+- In addition to the evaluation set used in the challenge (eval-small), a larger evaluation set (eval-full) is made available.
+- Due to legal and quality constraints we unfortunately had to remove Dev-set-2. Instead, Dev-set-1 will serve as the development set for the open dataset.
+<br> Dev-set-2 is approved for use exclusively as part of the NOTSOFAR-1 Challenge, but not beyond it.
+Challenge participants are only allowed to use Dev-set-2 for publications related to systems developed during the Challenge.
 
-### Download
+  
+### Notes on Quality
+- Upcoming upgrades: To ensure maximal annotation quality, the training and development subsets are undergoing transcription upgrades. Please stay tuned for updates.
+- The Rockfall1 multi-channel device (mc_rockfall_1), suspected of being faulty due to subjective sound quality, is excluded from eval-small and eval-full but remains in the training and development sets. Users may choose whether to use it.
+
+
+## 2. Simulated Training Dataset
+
+The simulated training dataset consists of almsot 1000 hours simulated with the same microphone-array geometry as the multi-channel devices in the NOTSOFAR meeting dataset.
+It was synthesized with enhanced authenticity for real-world generalization, incorporating 15,000 real acoustic transfer functions.
+
+### Download Instructions
 
 
 To download the dataset, you can call the python function `download_simulated_subset` within `utils/azure_storage.py`.
-Alternatively, using AzCopy CLI, set these arguments and run the following command:
+Alternatively, using [AzCopy](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10#download-azcopy) CLI, 
+set these arguments and run the following command:
 
-- `version`: version of the train data to download (`v1.1` / `v1.2` / `v1.3` / `1.4` / `1.5` / etc.).
-See doc in `download_simulated_subset` function in `utils/azure_storage.py` for latest available versions.
+- `version`: version of the train data to download ( `1.5` is the latest).
+See doc in `download_simulated_subset` function in `utils/azure_storage.py` for available versions.
 - `volume` - volume of the train data to download (`200hrs` / `1000hrs`)
 - `subset_name`: train data type to download (`train` / `val`)
 - `datasets_path` - path to the directory where you want to download the simulated dataset (destination directory must exist). <br>
@@ -304,18 +327,17 @@ See doc in `download_simulated_subset` function in `utils/azure_storage.py` for 
 azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/<version>/<volume>/<subset_name> <datasets_path>/benchmark --recursive 
 ```
 
-Example:
+Examples:
 ```bash
 azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/200hrs/train . --recursive
+azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/1000hrs/train . --recursive
 ```
 
 
 ## Data License
-This public data is currently licensed for use exclusively in the NOTSOFAR challenge event. 
-We appreciate your understanding that it is not yet available for academic or commercial use. 
-However, we are actively working towards expanding its availability for these purposes. 
-We anticipate a forthcoming announcement that will enable broader and more impactful use of this data. Stay tuned for updates. 
-Thank you for your interest and patience.
+The data provided in this repository is licensed under the 
+Creative Commons Attribution 4.0 International License (CC BY 4.0). 
+You are free to use, share, and adapt the data as long as appropriate credit is given. 
 
 
 # 🤝 Contribute

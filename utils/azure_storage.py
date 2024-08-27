@@ -127,18 +127,23 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
 
     Latest available versions:
+    (see "Comparison to the subsets used during the NOTSOFAR-1 Challenge" section in README.md)
 
-    # eval-set, GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
+
+    # training set: first and second train-set batches, with some faulty sc_rockfall_1 devices removed.
+    res_dir = download_meeting_subset(subset_name='train_set', version='240825.1_train', destination_dir=...)
+
+    # dev-set-1, GT available.
+    res_dir = download_meeting_subset(subset_name='dev_set', version='240825.1_dev1', destination_dir=...)
+
+    # The challenge evaluation set, GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
     # Entirely disjoint from the Training and Development sets, with no overlap in participants or rooms.
     res_dir = download_meeting_subset(subset_name='eval_set', version='240629.1_eval_small_with_GT', destination_dir=...)
 
-    # dev-set-2, GT available.
-    # dev-set-2 includes mostly new speakers compared to the training sets and dev-set-1.
-    res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev_with_GT', destination_dir=...)
+    # A larger evaluation set to facilitate further research and increase statistical significane of
+    # performance evaluations. 129 meetings and a variety of devices: 3 multi-channel, and 6-7 single-channel.
+    res_dir = download_meeting_subset(subset_name='eval_set', version='240825.1_eval_full_with_GT', destination_dir=...)
 
-    # training set: first and second train-set batches and dev-set-1 (GT unveiled) combined.
-    # dev-set-1 and the training sets have significant speaker overlap. Use dev-set-2 for development.
-    res_dir = download_meeting_subset(subset_name='train_set', version='240501.1_train', destination_dir=...)
 
 
     Note: to sync to a newer version of a dataset without downloading the entire dataset again
@@ -151,6 +156,15 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
 
 
     Previous versions:
+
+    # training set: first and second train-set batches and dev-set-1 (GT unveiled) combined.
+    # dev-set-1 and the training sets have significant speaker overlap. Use dev-set-2 for development.
+    res_dir = download_meeting_subset(subset_name='train_set', version='240501.1_train', destination_dir=...)
+
+    # dev-set-2, GT available. (no longer accessible, see README.md)
+    # dev-set-2 includes mostly new speakers compared to the training sets and dev-set-1.
+    res_dir = download_meeting_subset(subset_name='dev_set', version='240415.2_dev_with_GT', destination_dir=...)
+
 
     # eval-set, no GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.
     # Entirely disjoint from the Training and Development sets, with no overlap in participants or rooms.

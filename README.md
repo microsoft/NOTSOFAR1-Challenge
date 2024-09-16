@@ -9,9 +9,8 @@ Welcome to the "NOTSOFAR-1: Distant Meeting Transcription with a Single Device" 
 
 This repo contains the baseline system code and datasets for the NOTSOFAR-1 Challenge.
 
-- For more information about NOTSOFAR, visit [CHiME's official challenge website](https://www.chimechallenge.org/current/task2/index)
-- [Register](https://www.chimechallenge.org/current/task2/submission) to participate.
-- [Baseline system description](https://www.chimechallenge.org/current/task2/baseline).
+- For details on the datasets, baseline system, and tasks, please see our 
+[NOTSOFAR-1 paper](https://www.isca-archive.org/interspeech_2024/vinnikov24_interspeech.pdf) or visit [CHiME's official challenge website](https://www.chimechallenge.org/current/task2/index).
 - Contact us: join the `chime-8-notsofar` channel on the [CHiME Slack](https://join.slack.com/t/chime-fey5388/shared_invite/zt-1oha0gedv-JEUr1mSztR7~iK9AxM4HOA), or open a [GitHub issue](https://github.com/microsoft/NOTSOFAR1-Challenge/issues). 
 
 ### 📊 Baseline Results on NOTSOFAR dev-set-1
@@ -338,7 +337,7 @@ azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/1000hrs/t
 
 If you use the NOTSOFAR datasets or code in your research, please cite the following paper:
 
-```
+```bibtex
 @inproceedings{vinnikov24_interspeech,
   title     = {NOTSOFAR-1 Challenge: New Datasets, Baseline, and Tasks for Distant Meeting Transcription},
   author    = {Alon Vinnikov and Amir Ivry and Aviv Hurvitz and Igor Abramovski and Sharon Koubi and Ilya Gurvich and Shai Peer and Xiong Xiao and Benjamin Martinez Elizalde and Naoyuki Kanda and Xiaofei Wang and Shalev Shaer and Stav Yagev and Yossi Asher and Sunit Sivasankaran and Yifan Gong and Min Tang and Huaming Wang and Eyal Krupka},

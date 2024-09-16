@@ -141,7 +141,7 @@ With the provided `devcontainer.json` you can run and work on the project in a [
 
 
 # Running evaluation - the inference pipeline
-The following command will download the **entire dev-set-2** of the recorded meeting dataset and run the inference pipeline
+The following command will download the **entire dev-set-1** of the recorded meeting dataset and run the inference pipeline
 according to selected configuration. The default is configured to `--config-name dev_set_mc_debug` for quick debugging, 
 running on a single session with the Whisper 'tiny' model.
 ```bash
@@ -334,6 +334,21 @@ azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/200hrs/tr
 azcopy copy https://notsofarsa.blob.core.windows.net/css-datasets/v1.5/1000hrs/train . --recursive
 ```
 
+## Citation
+
+If you use the NOTSOFAR datasets or code in your research, please cite the following paper:
+
+```
+@inproceedings{vinnikov24_interspeech,
+  title     = {NOTSOFAR-1 Challenge: New Datasets, Baseline, and Tasks for Distant Meeting Transcription},
+  author    = {Alon Vinnikov and Amir Ivry and Aviv Hurvitz and Igor Abramovski and Sharon Koubi and Ilya Gurvich and Shai Peer and Xiong Xiao and Benjamin Martinez Elizalde and Naoyuki Kanda and Xiaofei Wang and Shalev Shaer and Stav Yagev and Yossi Asher and Sunit Sivasankaran and Yifan Gong and Min Tang and Huaming Wang and Eyal Krupka},
+  year      = {2024},
+  booktitle = {Interspeech 2024},
+  pages     = {5003--5007},
+  doi       = {10.21437/Interspeech.2024-1788},
+  issn      = {2958-1796},
+}
+```
 
 ## Data License
 The data provided in this repository is licensed under the 

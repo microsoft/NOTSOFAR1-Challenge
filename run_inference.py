@@ -54,8 +54,8 @@ def main(config_name: ConfigName = 'dev_set_mc_debug', output_dir: str = ""):
 
     # download the entire dev-set (all sessions, multi-channel and single-channel)
     meetings_root = project_root / 'artifacts' / 'meeting_data'
-    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',  # dev-set-2, GT included
-                                               version='240415.2_dev_with_GT',
+    dev_meetings_dir = download_meeting_subset(subset_name='dev_set',
+                                               version='240825.1_dev1',  # dev-set-1, GT included
                                                destination_dir=str(meetings_root))
 
     if dev_meetings_dir is None:

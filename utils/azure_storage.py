@@ -134,6 +134,7 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
     res_dir = download_meeting_subset(subset_name='train_set', version='240825.1_train', destination_dir=...)
 
     # dev-set-1, GT available.
+    # Users should be mindful of speakers overlap: there are 12 speakers, 10 of which are in the training set.
     res_dir = download_meeting_subset(subset_name='dev_set', version='240825.1_dev1', destination_dir=...)
 
     # The challenge evaluation set, GT available, smaller version with 16 hours per track for the NOTSOFAR Challenge.

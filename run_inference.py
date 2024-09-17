@@ -33,7 +33,7 @@ def load_config(config_name: ConfigName) -> InferenceCfg:
     elif config_name == 'dev_set_mc_debug':
         # for quick debug: 'tiny' Whisper, one MC (multi-channel) session
         conf_file = project_root / 'configs/inference/debug_inference.yaml'
-        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30500"'
+        session_query = 'device_name == "plaza_0" and is_mc == True and meeting_id == "MTG_30860"'
 
     else:
         raise ValueError(f'unknown config name: {config_name}')

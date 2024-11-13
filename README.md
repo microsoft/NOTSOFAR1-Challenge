@@ -10,7 +10,7 @@ Welcome to the "NOTSOFAR-1: Distant Meeting Transcription with a Single Device" 
 This repo contains the baseline system code and datasets for the NOTSOFAR-1 Challenge.
 
 - For details on the datasets, baseline system, and tasks, please see our 
-[NOTSOFAR-1 paper](https://www.isca-archive.org/interspeech_2024/vinnikov24_interspeech.pdf) or visit [CHiME's official challenge website](https://www.chimechallenge.org/current/task2/index).
+[NOTSOFAR-1 paper](https://www.isca-archive.org/interspeech_2024/vinnikov24_interspeech.pdf) or visit [CHiME's official challenge website](https://www.chimechallenge.org/challenges/chime8/task2/index).
 - Contact us: join the `chime-8-notsofar` channel on the [CHiME Slack](https://join.slack.com/t/chime-fey5388/shared_invite/zt-1oha0gedv-JEUr1mSztR7~iK9AxM4HOA), or open a [GitHub issue](https://github.com/microsoft/NOTSOFAR1-Challenge/issues). 
 
 ### 📊 Baseline Results on NOTSOFAR dev-set-1

@@ -4,7 +4,7 @@ from pprint import pprint
 from typing import Literal
 
 from inference_pipeline.inference import InferenceCfg, inference_pipeline, FetchFromCacheCfg
-from utils.azure_storage import download_meeting_subset, download_models
+from utils.notsofar_dataset import download_meeting_subset, download_models
 from utils.conf import load_yaml_to_dataclass, update_dataclass
 
 ConfigName = Literal['full_dev_set_mc', 'full_dev_set_sc', 'dev_set_mc_debug']

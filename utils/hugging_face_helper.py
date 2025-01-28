@@ -7,8 +7,11 @@ from tqdm import tqdm
 from huggingface_hub import HfApi
 
 
-api = HfApi()
+# Constants
 NOTSOFAR_HF_REPO_ID = "microsoft/NOTSOFAR"
+
+# Initialize Hugging Face API
+_HF_API = HfApi()
 
 
 def is_hf_dir_exists(subfolder: Union[str, Path]) -> bool:
@@ -24,7 +27,7 @@ def is_hf_dir_exists(subfolder: Union[str, Path]) -> bool:
     assert isinstance(subfolder, (str, Path)), "local_dir should be a string or Path object"
 
     try:
-        files = api.list_repo_tree(repo_id=NOTSOFAR_HF_REPO_ID, repo_type="dataset", path_in_repo=subfolder)
+        files = _HF_API.list_repo_tree(repo_id=NOTSOFAR_HF_REPO_ID, repo_type="dataset", path_in_repo=subfolder)
         return True if files else False
     except Exception as e:
         return False
@@ -39,8 +42,8 @@ def list_hf_dir_files(root_dir: Union[str, Path]) -> List[str]:
     """
     root_dir = str(root_dir)
     assert is_hf_dir_exists(root_dir), f"Cannot find {root_dir} in the Hugging Face repository"
-    return [val.path for val in api.list_repo_tree(repo_id=NOTSOFAR_HF_REPO_ID, repo_type="dataset",
-                                                   path_in_repo=root_dir)]
+    return [val.path for val in _HF_API.list_repo_tree(repo_id=NOTSOFAR_HF_REPO_ID, repo_type="dataset",
+                                                       path_in_repo=root_dir)]
 
 
 def download_hf_file(file_path: str, local_dir: Path, pbar: Optional[tqdm]):
@@ -54,8 +57,8 @@ def download_hf_file(file_path: str, local_dir: Path, pbar: Optional[tqdm]):
     """
     local_file_path = local_dir / file_path
     os.makedirs(local_file_path.parent, exist_ok=True)
-    api.hf_hub_download(repo_id=NOTSOFAR_HF_REPO_ID, filename=file_path,
-                        repo_type="dataset", local_dir=local_file_path.parent)
+    _HF_API.hf_hub_download(repo_id=NOTSOFAR_HF_REPO_ID, filename=file_path,
+                            repo_type="dataset", local_dir=local_file_path.parent)
     pbar.update(1)
 
 
@@ -88,13 +91,26 @@ def main():
     """
     Usage example for the Hugging Face helper functions
     """
+    import tempfile
+
+    # List files in a directory
+    print("\n>>> Listing files in a directory")
     folder_path = "benchmark-datasets/dev_set"
     files = list_hf_dir_files(root_dir=folder_path)
-    print(files)
+    print(f"Files in {folder_path}: {files}")
 
+    # Check if a directory exists
+    print("\n>>> Checking if a directory exists")
+    subfolder = "benchmark-datasets/dev_set/240130.1_dev/MTG/MTG_30860/mc_plaza_0"
+    print(f"Does {subfolder} exist? {is_hf_dir_exists(subfolder)}")
+
+    # Download a directory
+    print("\n>>> Downloading a directory")
     download_dir = 'benchmark-datasets/dev_set/240130.1_dev/MTG/MTG_30860/mc_plaza_0'
-    dst_dir = 'C:\dev\Temp\HF DOWNLOAD_TEST'
-    download_hf_dir(subfolder=download_dir, local_dir=dst_dir)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        print(f"Downloading {download_dir} to {temp_dir}")
+        download_hf_dir(subfolder=download_dir, local_dir=temp_dir)
+        print(f"Downloaded files: {os.listdir(temp_dir)}")
 
 
 if __name__ == '__main__':

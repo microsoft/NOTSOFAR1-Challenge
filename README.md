@@ -244,6 +244,26 @@ The datasets are provided for open research. See the [Data License](#data-licens
 <br>They are hosted in Hugging Face dataset. See download instructions below.
 <br>Visit the [Data section on CHiME's website](https://www.chimechallenge.org/current/task2/data) to explore the data further.
 
+## Pre-requisites
+To download the datasets from HuggingFace, you need to generate an API token.
+1. Sign up for a Hugging Face account at [Hugging Face](https://huggingface.co/join).
+2. Generate an Access Token with read permissions by following the instructions at [Hugging Face Access Tokens](https://huggingface.co/settings/tokens).
+3. Set the `HF_TOKEN` environment variable to the TOKEN you generated:
+    #### for windows
+    ```bash
+   1. go to the start menu and search for "environment variables"
+    2. click on "Edit the system environment variables"
+    3. click on "Environment Variables"
+    4. click on "New" under "System Variables"
+    5. add a new variable with HF_TOKEN as the name and the token you generated as the value
+    6. click "OK" to save the variable
+    ```
+    #### for linux
+    ```bash
+    export HF_TOKEN="<the token you generated>"
+    ```
+4. Restart the terminal or the IDE you are using to apply the changes.
+
 
 ## 1. Recorded Meeting Dataset for Benchmarking and Training
 

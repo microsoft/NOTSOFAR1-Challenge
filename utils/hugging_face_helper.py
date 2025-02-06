@@ -100,7 +100,7 @@ def download_hf_file(file_path: str, local_dir: str, pbar: Optional[tqdm] = None
 
     try:
         _HF_API.hf_hub_download(repo_id=NOTSOFAR_HF_REPO_ID, filename=file_path,
-                                repo_type="dataset", local_dir=local_file_path.parent)
+                                repo_type="dataset", local_dir=local_dir)
         if pbar:
             pbar.update(1)  # Increment progress bar if provided
     except Exception as e:

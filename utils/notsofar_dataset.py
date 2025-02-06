@@ -73,7 +73,8 @@ def download_meeting_subset(subset_name: Literal['train_set', 'dev_set', 'eval_s
     download_hf_dir(subfolder=hf_subfolder, local_dir=destination_dir)
     _LOG.info(f'Download completed, download dir: {destination_dir}')
 
-    return str(destination_dir) if destination_dir.exists() else None
+    local_dir = destination_dir / hf_subfolder
+    return str(local_dir) if local_dir.exists() else None
 
 
 def download_simulated_subset(version: str, volume: Literal['200hrs', '1000hrs'],
@@ -120,7 +121,9 @@ def download_simulated_subset(version: str, volume: Literal['200hrs', '1000hrs']
     return str(destination_dir) if destination_dir.exists() else None
 
 
-def download_models(destination_dir: str, version: Literal['conformer0.5', 'conformer1.0'] = 'conformer1.0',
+def download_models(destination_dir: str, 
+                    set_type: str = 'css-models',
+                    version: Literal['conformer0.5', 'conformer1.0'] = 'conformer1.0',
                     pattern: Optional[str] = None, overwrite: bool = False) -> Optional[str]:
     """
     Download the models to the destination directory
@@ -134,15 +137,16 @@ def download_models(destination_dir: str, version: Literal['conformer0.5', 'conf
     Returns:
         a string indicates the output directory path, or None if the download failed
     """
-    set_type = 'css-models'
     _LOG.info(f'Downloading models: version: {version}, pattern: {pattern}')
     destination_dir = Path(destination_dir)
-    if overwrite and destination_dir.exists():
-        shutil.rmtree(destination_dir)
+    models_subdir = f'{set_type}/notsofar/{version}'
+    models_local_dir = destination_dir / models_subdir
+    if overwrite and models_local_dir.exists():
+        shutil.rmtree(models_local_dir)
 
-    download_hf_dir(subfolder=f'{set_type}/notsofar/{version}{"/" + pattern if pattern else ""}', local_dir=destination_dir)
+    download_hf_dir(subfolder=f'{models_subdir}{"/" + pattern if pattern else ""}', local_dir=destination_dir)
     _LOG.info(f'Download completed: models version {version}, pattern: {pattern}')
-    return str(destination_dir) if destination_dir.exists() else None
+    return str(models_local_dir) if models_local_dir.exists() else None
 
 
 def main():

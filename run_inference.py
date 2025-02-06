@@ -62,8 +62,9 @@ def main(config_name: ConfigName = 'dev_set_mc_debug', output_dir: str = ""):
         raise RuntimeError('failed to download benchmark dataset')
 
     # download models
-    models_dir = project_root / 'artifacts' / 'css_models'
-    download_models(destination_dir=str(models_dir))
+    model_set_type = 'css-models'
+    models_dir = project_root / 'artifacts' 
+    download_models(destination_dir=str(models_dir), set_type=model_set_type)
 
     # outputs per module will be written here
     outputs_dir = (project_root if output_dir == "" else Path(output_dir)) / 'artifacts' / 'outputs'
@@ -78,7 +79,7 @@ def main(config_name: ConfigName = 'dev_set_mc_debug', output_dir: str = ""):
 
     # run inference pipeline
     inference_pipeline(meetings_dir=str(dev_meetings_dir),
-                       models_dir=str(models_dir),
+                       models_dir=str(models_dir / model_set_type),
                        out_dir=str(outputs_dir),
                        cfg=cfg,
                        cache=cache_cfg)
